@@ -4,6 +4,9 @@ from huggingface_hub import HfFolder
 from sentence_transformers import SentenceTransformer
 import faiss
 
+# Récupérer le token Hugging Face depuis Streamlit Secrets
+hf_token = st.secrets["huggingface"]["token"]
+
 # Initialisation du modèle d'embedding et de l'index FAISS
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Modèle rapide et léger
 documents = [
@@ -40,11 +43,11 @@ def find_relevant_docs(query, k=2):
 # Fonction pour utiliser Mistral via l'API
 def mistral_via_api(prompt):
     API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-    HF_TOKEN = HfFolder.get_token()
-    if HF_TOKEN is None:
+    
+    if hf_token is None:
         return "Error: No tokens found. Log in with `huggingface-cli login`."
 
-    headers = {"Authorization": f"Bearer {HF_TOKEN}"}
+    headers = {"Authorization": f"Bearer {hf_token}"}
     payload = {
         "inputs": prompt,
         "parameters": {
