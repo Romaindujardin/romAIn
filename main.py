@@ -3,9 +3,14 @@ import streamlit as st
 from huggingface_hub import HfFolder
 from sentence_transformers import SentenceTransformer
 import faiss
+import time
+import os
+
+
 
 # Récupérer le token Hugging Face depuis Streamlit Secrets
 hf_token = st.secrets["huggingface"]["token"]
+
 
 # Initialisation du modèle d'embedding et de l'index FAISS
 embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Modèle rapide et léger
@@ -22,8 +27,9 @@ documents = [
     "My email is dujardin.romain@icloud.com and My phone number is 07 83 19 30 23",
     "I had professional experience as a pharmaceutical driver, accountant, machine operator or food truck clerk",
     "I have a driving license",
-    "I have a BAC STI2D with honors.",
+    "I graduated with the sti2d baccalaureate with honors",
     "I code in python, django, react and I master tools like rag, hyde, pytorsh"
+    "I currently work on an inclusive LLM for disabled people, a project that I am developing with a team of 5 people. We use HyDE system to develop the project",
 ]
 
 # Créer des embeddings pour chaque document
@@ -52,8 +58,8 @@ def mistral_via_api(prompt):
         "inputs": prompt,
         "parameters": {
             "max_new_tokens": 300,
-            "temperature": 0.4,
-            "top_k": 50,
+            "temperature": 0.1,
+            "top_k": 10,
         }
     }
     response = requests.post(API_URL, headers=headers, json=payload)
@@ -67,18 +73,70 @@ def mistral_via_api(prompt):
 def rag_pipeline(query, k=4):
     relevant_docs = find_relevant_docs(query, k)
     context = "\n".join(relevant_docs)
-    prompt = f"Context : {context}\n\nQuestion : {query}\n\nAnswer :"
+    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Only respond to the question provided, using the context. Do not answer any other implicit or unrelated questions."
     return mistral_via_api(prompt)
+
+
+# # Ajout du visualiseur 3D avec WebGL et Three.js
+# html_3d_viewer = """
+# <div id="container" style="width: 100%; height: 500px;"></div>
+# <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+# <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
+# <script>
+#   const container = document.getElementById("container");
+
+#   // Initialiser la scène
+#   const scene = new THREE.Scene();
+#   const camera = new THREE.PerspectiveCamera(75, container.offsetWidth / 500, 0.1, 1000);
+#   const renderer = new THREE.WebGLRenderer();
+#   renderer.setSize(container.offsetWidth, 500);
+#   container.appendChild(renderer.domElement);
+
+#   // Ajouter la lumière
+#   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
+#   light.position.set(0, 200, 0);
+#   scene.add(light);
+
+#   // Charger le modèle GLB
+#   const loader = new THREE.GLTFLoader();
+#   loader.load(
+#     'static/test.glb', // Remplacez cette URL par le chemin ou l'URL de votre fichier GLB
+#     function (gltf) {
+#       const model = gltf.scene;
+#       scene.add(model);
+#       model.position.set(0, 0, 0);
+#     },
+#     undefined,
+#     function (error) {
+#       console.error('Erreur de chargement du modèle:', error);
+#     }
+#   );
+
+#   camera.position.z = 5;
+
+#   // Animation de la scène
+#   function animate() {
+#     requestAnimationFrame(animate);
+#     renderer.render(scene, camera);
+#   }
+#   animate();
+# </script>
+# """
+
+
+# # Ajouter l'élément HTML dans Streamlit
+# st.components.v1.html(html_3d_viewer, height=500)
+
 
 # Interface Streamlit
 st.title("romAIn")
-st.write("Entrez votre question ci-dessous pour obtenir une réponse générée à partir de mes informations pertinentes.")
+st.write("here is romAIn, an AI in the image of Romain Dujardin. Ask him questions in English and he will answer them as best he can")
 
 # Champ de texte pour l'utilisateur
-query = st.text_input("Votre question")
+query = st.text_input("Your question:")
 
 if query:
-    with st.spinner("Génération de la réponse..."):
+    with st.spinner("Generating the response..."):
         answer = rag_pipeline(query)
-    st.write("Réponse générée :")
+    st.write("Response generated:")
     st.write(answer)
