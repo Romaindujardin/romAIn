@@ -8,6 +8,10 @@ import os
 import streamlit as st 
 import streamlit_3d as sd
 import re  # Import pour le traitement du texte
+import streamlit as st
+from streamlit_stl import stl_from_file, stl_from_text
+import streamlit as st
+import plotly.graph_objects as go
 
 
 
@@ -33,6 +37,11 @@ documents = [
     "I graduated with the sti2d baccalaureate with honors",
     "I code in python, django, react and I master tools like rag, hyde, pytorsh"
     "I currently work on an inclusive LLM for disabled people, a project that I am developing with a team of 5 people. We use HyDE system to develop the project",
+    "My hobbies are video games, reading, sports, cinema, music and cooking",
+    "My qualities are my adaptability, my curiosity, my rigor, my creativity, my autonomy, my team spirit and my ability to learn quickly. My softkills are my ability to communicate, my ability to adapt, my ability to work in a team, my ability to solve problems and my ability to manage my time and my hardskills are my ability to code in python and other langages, i also know some tools like rag, hyde, pytorsh",
+    "I'm speaking French (fluent) and English (got toeic 790/990)",
+    "If I had to cite a default it would be that I like to control everything, do everything on a project, I have a little difficulty delegating the work"
+    "My favorite movie is Lucy."
 ]
 
 # Créer des embeddings pour chaque document
@@ -111,17 +120,95 @@ if st.session_state.page == 'home':
     home.main()
 elif st.session_state.page == 'main':
 
-    # Afficher un avatar animé au milieu de la page
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        st.image("avatar2.gif", width=480)
+              
 
-    # Champ de texte pour l'utilisateur
-    query = st.text_input("Your question:")
 
-    if query:
-        with st.spinner("Generating the response..."):
-            answer = rag_pipeline(query)
-        # Afficher uniquement la réponse
-        st.subheader("Answer:")
-        st.write(answer)
+          # Charger le fichier OBJ directement
+          obj_file_path = "test.obj"  # Remplace par le chemin de ton fichier
+          try:
+              with open(obj_file_path, "r") as file:
+                  obj_data = file.read()
+          except FileNotFoundError:
+              st.error(f"Le fichier '{obj_file_path}' est introuvable. Vérifie le chemin.")
+              st.stop()
+
+          # Extraction des données du fichier OBJ
+          vertices = []
+          faces = []
+          vertex_colors = []  # Pour stocker les couleurs des sommets
+
+          for line in obj_data.split("\n"):
+              parts = line.strip().split()
+              if not parts or parts[0] not in {"v", "f"}:  # Ignorer les lignes vides ou inutiles
+                  continue
+              if parts[0] == "v":  # Vertex avec couleur potentielle
+                  try:
+                      if len(parts) >= 4:  # Minimum : v x y z
+                          vertices.append([float(parts[1]), float(parts[2]), float(parts[3])])
+                          if len(parts) == 7:  # Si les couleurs sont présentes
+                              vertex_colors.append([float(parts[4]), float(parts[5]), float(parts[6])])
+                          else:
+                              vertex_colors.append([1, 1, 1])  # Couleur blanche par défaut
+                  except ValueError:
+                      st.warning(f"Ligne invalide ignorée : {line}")
+              elif parts[0] == "f":  # Face
+                  try:
+                      face = [int(p.split('/')[0]) - 1 for p in parts[1:]]
+                      faces.append(face)
+                  except ValueError:
+                      st.warning(f"Ligne de face invalide ignorée : {line}")
+
+          # Vérification des données chargées
+          if not vertices or not faces:
+              st.error("Impossible de lire correctement les sommets ou les faces depuis le fichier OBJ.")
+              st.stop()
+
+          # Préparation des données pour Plotly
+          x, y, z = zip(*vertices)
+          i, j, k = zip(*faces)
+          r, g, b = zip(*vertex_colors)
+          colors = ['rgb({}, {}, {})'.format(int(r_ * 255), int(g_ * 255), int(b_ * 255)) for r_, g_, b_ in zip(r, g, b)]
+
+          # Création de la figure 3D avec couleurs
+          fig = go.Figure(data=[
+              go.Mesh3d(
+                  x=x, y=y, z=z,
+                  i=i, j=j, k=k,
+                  vertexcolor=colors,  # Ajout des couleurs par sommet
+                  opacity=1.0,
+                  hoverinfo="skip",  # Désactive l'affichage des coordonnées au survol
+              )
+          ])
+
+          # Suppression des axes, de la grille et des marges
+          fig.update_layout(
+              scene=dict(
+                  xaxis=dict(visible=False),  # Désactive l'axe X
+                  yaxis=dict(visible=False),  # Désactive l'axe Y
+                  zaxis=dict(visible=False),  # Désactive l'axe Z
+                  camera=dict(
+                      eye=dict(x=0, y=0, z=1.5),  # Position de la caméra
+                      up=dict(x=1, y=0, z=1),         # Orientation "haut" de la caméra
+                      center=dict(x=0, y=0, z=0)      # Point vers lequel la caméra regarde
+                  )
+              ),
+              margin=dict(l=0, r=0, t=0, b=0),  # Supprime les marges autour de l'objet
+          )
+
+          # Affichage dans Streamlit
+          st.plotly_chart(fig, use_container_width=True)
+
+
+              
+
+              
+
+          # Champ de texte pour l'utilisateur
+          query = st.text_input("Your question:")
+
+          if query:
+                  with st.spinner("Generating the response..."):
+                      answer = rag_pipeline(query)
+                  # Afficher uniquement la réponse
+                  st.subheader("Answer:")
+                  st.write(answer)
