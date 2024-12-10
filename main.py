@@ -98,22 +98,30 @@ def rag_pipeline(query, k=4):
 
 
 
-# Interface Streamlit
+# Set page configuration
 st.set_page_config(layout="wide")
-st.title("romAIn")
-st.write("here is romAIn, an AI in the image of Romain Dujardin. Ask him questions in English and he will answer them as best he can.")
 
-# Afficher un avatar animé au milieu de la page
-col1, col2, col3 = st.columns([1, 2, 1])
-with col2:
-    st.image("avatar2.gif", width=480)
+# Initialize session state
+if 'page' not in st.session_state:
+    st.session_state.page = 'home'
 
-# Champ de texte pour l'utilisateur
-query = st.text_input("Your question:")
+# Navigation
+if st.session_state.page == 'home':
+    import home
+    home.main()
+elif st.session_state.page == 'main':
 
-if query:
-    with st.spinner("Generating the response..."):
-        answer = rag_pipeline(query)
-    # Afficher uniquement la réponse
-    st.subheader("Answer:")
-    st.write(answer)
+    # Afficher un avatar animé au milieu de la page
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        st.image("avatar2.gif", width=480)
+
+    # Champ de texte pour l'utilisateur
+    query = st.text_input("Your question:")
+
+    if query:
+        with st.spinner("Generating the response..."):
+            answer = rag_pipeline(query)
+        # Afficher uniquement la réponse
+        st.subheader("Answer:")
+        st.write(answer)
