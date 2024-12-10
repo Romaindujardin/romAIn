@@ -5,6 +5,9 @@ from sentence_transformers import SentenceTransformer
 import faiss
 import time
 import os
+import streamlit as st 
+import streamlit_3d as sd
+import re  # Import pour le traitement du texte
 
 
 
@@ -69,68 +72,41 @@ def mistral_via_api(prompt):
     else:
         return f"Error : {response.status_code} - {response.json()}"
 
+
 # Pipeline RAG - Combiner recherche et génération
 def rag_pipeline(query, k=4):
     relevant_docs = find_relevant_docs(query, k)
     context = "\n".join(relevant_docs)
-    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Only respond to the question provided, using the context. Do not answer any other implicit or unrelated questions."
-    return mistral_via_api(prompt)
+    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Provide the answer only, without repeating the question or context. Only respond to the question provided, using the context."
+    response = mistral_via_api(prompt)
 
+    # Nettoyage de la réponse
+    # Suppression explicite de la consigne
+    unwanted_phrases = [
+        "Provide the answer only, without repeating the question or context.",
+        "Only respond to the question provided, using the context.",
+        "Do not answer any other implicit or unrelated questions."
+    ]
+    for phrase in unwanted_phrases:
+        response = response.replace(phrase, "").strip()
 
-# # Ajout du visualiseur 3D avec WebGL et Three.js
-# html_3d_viewer = """
-# <div id="container" style="width: 100%; height: 500px;"></div>
-# <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-# <script src="https://cdn.jsdelivr.net/npm/three/examples/js/loaders/GLTFLoader.js"></script>
-# <script>
-#   const container = document.getElementById("container");
+    # Extraction après "Answer:"
+    answer_match = re.search(r"Answer:\s*(.*)", response, re.DOTALL)
+    if answer_match:
+        return answer_match.group(1).strip()
+    return response
 
-#   // Initialiser la scène
-#   const scene = new THREE.Scene();
-#   const camera = new THREE.PerspectiveCamera(75, container.offsetWidth / 500, 0.1, 1000);
-#   const renderer = new THREE.WebGLRenderer();
-#   renderer.setSize(container.offsetWidth, 500);
-#   container.appendChild(renderer.domElement);
-
-#   // Ajouter la lumière
-#   const light = new THREE.HemisphereLight(0xffffff, 0x444444, 1);
-#   light.position.set(0, 200, 0);
-#   scene.add(light);
-
-#   // Charger le modèle GLB
-#   const loader = new THREE.GLTFLoader();
-#   loader.load(
-#     'static/test.glb', // Remplacez cette URL par le chemin ou l'URL de votre fichier GLB
-#     function (gltf) {
-#       const model = gltf.scene;
-#       scene.add(model);
-#       model.position.set(0, 0, 0);
-#     },
-#     undefined,
-#     function (error) {
-#       console.error('Erreur de chargement du modèle:', error);
-#     }
-#   );
-
-#   camera.position.z = 5;
-
-#   // Animation de la scène
-#   function animate() {
-#     requestAnimationFrame(animate);
-#     renderer.render(scene, camera);
-#   }
-#   animate();
-# </script>
-# """
-
-
-# # Ajouter l'élément HTML dans Streamlit
-# st.components.v1.html(html_3d_viewer, height=500)
 
 
 # Interface Streamlit
+st.set_page_config(layout="wide")
 st.title("romAIn")
-st.write("here is romAIn, an AI in the image of Romain Dujardin. Ask him questions in English and he will answer them as best he can")
+st.write("here is romAIn, an AI in the image of Romain Dujardin. Ask him questions in English and he will answer them as best he can.")
+
+# Afficher un avatar animé au milieu de la page
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    st.image("avatar2.gif", width=480)
 
 # Champ de texte pour l'utilisateur
 query = st.text_input("Your question:")
@@ -138,5 +114,6 @@ query = st.text_input("Your question:")
 if query:
     with st.spinner("Generating the response..."):
         answer = rag_pipeline(query)
-    st.write("Response generated:")
+    # Afficher uniquement la réponse
+    st.subheader("Answer:")
     st.write(answer)
