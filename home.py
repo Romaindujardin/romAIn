@@ -8,10 +8,10 @@ def main():
             text-align: center;
         }
         .h1 {
-            font-size: 7em;
+            font-size: 7vw;
         }
         .p {
-            font-size: 1em;
+            font-size: 1vw;
         }
         </style>
         """,
