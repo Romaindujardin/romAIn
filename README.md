@@ -20,3 +20,13 @@ then I store it all in a database
 I repeat these steps as soon as I have new information about myself, so they don't have to be repeated every time.
 
 
+### Input
+then i'll do the same thing with the user's question. the question is put in vector form like my input data
+
+
+### Best document for context
+Once our input data and our question are in the right form, we need to determine which input data is more relevant to answer. For example, to answer the question “what's your name?” the input “I'm 22” isn't really of interest, so the aim is to filter the documents to select the most relevant ones. In my case, I decided to select 3 of the most relevant.
+
+for this I use a FAISS index and a function to search for relevant documents according to the embedding of the question, the embedding of the documents and the index
+
+
