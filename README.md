@@ -30,3 +30,14 @@ Once our input data and our question are in the right form, we need to determine
 for this I use a FAISS index and a function to search for relevant documents according to the embedding of the question, the embedding of the documents and the index
 
 
+### Sent to LLM
+once we've determined which documents are most relevant to answering the question, we send the question + the documents in question + a personalized prompt to optimize the answer. 
+
+As for LLM, I use Mistral-7B-Instruct-v0.2 via hugging face, I use the api for communication
+
+### Show answer on web interface
+Once the answer is returned, I filter it to prevent it from repeating the question or context and display it on the streamlite page.
+
+
+
+
