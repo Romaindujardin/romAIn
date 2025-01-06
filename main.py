@@ -25,22 +25,24 @@ documents = [
     "My name is Romain Dujardin",
     "I'm 22 years old",
     "I'm a French student in AI engineer",
-    "I study at Isen JUNIA in Lille since 2021, During my studies, I have learned about machine learning, deep learning, computer vision, natural language processing, reinforcement learning. I had lessons in mathematics, statistics, computer science, physics, electronics and project management",
+    "I currently study at Isen JUNIA in Lille since 2021 (school), During my studies, I have learned about machine learning, deep learning, computer vision, natural language processing, reinforcement learning. I had lessons in mathematics, statistics, computer science, physics, electronics and project management",
     "Before Isen JUNIA, I was at ADIMAKER, an integrated preparatory class where I learned the basics of engineering",
     "I'm passionate about artificial intelligence, new technologies and computer science",
     "I'm based in Lille, France",
     "I have work on different project during my studies, like Project F.R.A.N.K who is a 3d project mixing AI on unity3D it is a horror game in a realistic universe, with advanced gameplay functions such as inventory management and item usage, all while being pursued by a monster under AI. And i have also worked on a local drive project on django named DriveMe. all this project are available on my github",
+    "During these different projects I first learned to manage a team as a project manager and therefore at the same time to work in a team, I also put into practice what I see in progress in concrete examples . in addition I was able to deal with problem solving on certain projects",
     "I'm currently looking for an internationally internship in AI, starting in April 2025",
     "My email is dujardin.romain@icloud.com and My phone number is 07 83 19 30 23",
     "I had professional experience as a pharmaceutical driver, accountant, machine operator or food truck clerk",
     "I have a driving license",
-    "I graduated with the sti2d baccalaureate with honors",
-    "I code in python, django, react and I master tools like rag, hyde, pytorsh"
+    "I graduated with the sti2d baccalaureate with honors when I was in college",
+    "I code in python, C, CPP, django, JavaScript and react. I master tools like rag, hyde, pytorsh"
     "I currently work on an inclusive LLM for disabled people, a project that I am developing with a team of 5 people. We use HyDE system to develop the project",
     "My hobbies are video games, reading, sports, cinema, music and cooking",
+    "my favorite sport is football, my favorite team is the LOSC",
     "My qualities are my adaptability, my curiosity, my rigor, my creativity, my autonomy, my team spirit and my ability to learn quickly. My softkills are my ability to communicate, my ability to adapt, my ability to work in a team, my ability to solve problems and my ability to manage my time and my hardskills are my ability to code in python and other langages, i also know some tools like rag, hyde, pytorsh",
-    "I'm speaking French (fluent) and English (got toeic 790/990)",
-    "If I had to cite a default it would be that I like to control everything, do everything on a project, I have a little difficulty delegating the work"
+    "I'm speaking French (fluent) and English B2 (got toeic 790/990)",
+    "If I had to cite a default it would be that I like to do everything, what I mean by that is that when I work on a new project I am enthusiastic and want to do everything and touch everything on it."
     "My favorite movie is Lucy."
 ]
 
@@ -70,7 +72,7 @@ def mistral_via_api(prompt):
         "inputs": prompt,
         "parameters": {
             "max_new_tokens": 300,
-            "temperature": 0.1,
+            "temperature": 0.5,
             "top_k": 10,
         }
     }
@@ -83,18 +85,19 @@ def mistral_via_api(prompt):
 
 
 # Pipeline RAG - Combiner recherche et génération
-def rag_pipeline(query, k=4):
+def rag_pipeline(query, k=2):
     relevant_docs = find_relevant_docs(query, k)
     context = "\n".join(relevant_docs)
-    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Provide the answer only, without repeating the question or context. Only respond to the question provided, using the context."
+    prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Provide the answer only directly, without repeating the question or context or any additionnal text. Only respond to the question provided, using the context else do not answer."
     response = mistral_via_api(prompt)
 
     # Nettoyage de la réponse
     # Suppression explicite de la consigne
     unwanted_phrases = [
-        "Provide the answer only, without repeating the question or context.",
-        "Only respond to the question provided, using the context.",
+        "Provide the answer only directly, without repeating the question or context or any additionnal text.",
+        "Only respond to the question provided, using the context else do not answer.",
         "Do not answer any other implicit or unrelated questions."
+        "Answer:"
     ]
     for phrase in unwanted_phrases:
         response = response.replace(phrase, "").strip()
@@ -186,7 +189,6 @@ def rag_pipeline(query, k=4):
         #   # Affichage dans Streamlit
         #   st.plotly_chart(fig, use_container_width=True)
         # Afficher l'image A de base
-
 st.set_page_config(layout="wide")
 
 st.markdown(
