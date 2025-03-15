@@ -20,7 +20,7 @@ hf_token = st.secrets["huggingface"]["token"]
 
 
 # Initialisation du modèle d'embedding et de l'index FAISS
-embedding_model = SentenceTransformer('all-MiniLM-L6-v2')  # Modèle rapide et léger
+embedding_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # Modèle rapide et léger
 documents = [
     "My name is Romain Dujardin",
     "I'm 22 years old",
@@ -31,7 +31,8 @@ documents = [
     "I'm based in Lille, France",
     "I have work on different project during my studies, like Project F.R.A.N.K who is a 3d project mixing AI on unity3D it is a horror game in a realistic universe, with advanced gameplay functions such as inventory management and item usage, all while being pursued by a monster under AI. And i have also worked on a local drive project on django named DriveMe. all this project are available on my github",
     "During these different projects I first learned to manage a team as a project manager and therefore at the same time to work in a team, I also put into practice what I see in progress in concrete examples . in addition I was able to deal with problem solving on certain projects",
-    "I'm currently looking for a contract in AI, starting in september 2025 to validate my diploma",
+    "I'm looking for a contract in AI",
+    "I need a contract to validate my diploma",    
     "My email is dujardin.romain@icloud.com and My phone number is 07 83 19 30 23",
     "I had professional experience as a pharmaceutical driver, accountant, machine operator or food truck clerk",
     "I have a driving license and my personal vehicle",
@@ -61,11 +62,11 @@ def find_relevant_docs(query, k=2):
     print(f"Query: {query}")  # Debug
     print(f"Distances trouvées: {distances[0]}")  
 
-    # Nouveau seuil ajusté
-    threshold = 1.5  
+    # Seuil ajusté sur la meilleure correspondance
+    threshold = 1.41  
 
-    # Vérifier si au moins un document est en dessous du seuil
-    if all(dist > threshold for dist in distances[0]):
+    # Vérifier si le meilleur document est en dessous du seuil
+    if distances[0][0] > threshold:
         print("Aucun document pertinent trouvé.")  
         return [], []  
 
@@ -100,7 +101,7 @@ def rag_pipeline(query, k=2):
     relevant_docs, distances = find_relevant_docs(query, k)
 
     if not relevant_docs:  # Si aucun document pertinent n'a été trouvé
-        return "Je suis désolé, je ne peux pas répondre."
+        return "I'm sorry, I can't answer."
 
     context = "\n".join(relevant_docs)
     prompt = f"Context: {context}\n\nQuestion: {query}\n\nAnswer: Provide the answer only directly, without repeating the question or context or any additional text. Only respond to the question provided, using the context else do not answer."
