@@ -31,7 +31,7 @@ documents = [
     "I'm based in Lille, France",
     "I have work on different project during my studies, like Project F.R.A.N.K who is a 3d project mixing AI on unity3D it is a horror game in a realistic universe, with advanced gameplay functions such as inventory management and item usage, all while being pursued by a monster under AI. And i have also worked on a local drive project on django named DriveMe. all this project are available on my github",
     "During these different projects I first learned to manage a team as a project manager and therefore at the same time to work in a team, I also put into practice what I see in progress in concrete examples . in addition I was able to deal with problem solving on certain projects",
-    "I'm currently looking for an internationally internship in AI, starting in April 2025",
+    "I'm currently looking for a contract in AI, starting in september 2025 to validate my diploma",
     "My email is dujardin.romain@icloud.com and My phone number is 07 83 19 30 23",
     "I had professional experience as a pharmaceutical driver, accountant, machine operator or food truck clerk",
     "I have a driving license and my personal vehicle",
