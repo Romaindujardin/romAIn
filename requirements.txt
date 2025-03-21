@@ -5,6 +5,6 @@ sentence-transformers
 faiss-cpu
 numpy
 plotly
-PortAudio
+portaudio19-dev
 pyaudio
 wave
