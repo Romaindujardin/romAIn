@@ -1,19 +1,27 @@
 import requests
 import streamlit as st
-from huggingface_hub import HfFolder
+from huggingface_hub import HfFolder, InferenceClient
 from sentence_transformers import SentenceTransformer
 import faiss
 import time
 import os
 import re
+import numpy as np
+from io import BytesIO
+import base64
 import plotly.graph_objects as go
-from streamlit_stl import stl_from_file, stl_from_text
+import pyaudio
+import wave
+import tempfile
 
 # Récupérer le token Hugging Face depuis Streamlit Secrets
 hf_token = st.secrets["huggingface"]["token"]
 
+# Initialisation du client d'inférence
+client = InferenceClient(api_key=hf_token)
+
 # Initialisation du modèle d'embedding et de l'index FAISS
-embedding_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')  # Modèle rapide et léger
+embedding_model = SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
 documents = [
     "My name is Romain Dujardin",
     "I'm 22 years old",
@@ -52,16 +60,11 @@ def find_relevant_docs(query, k=2):
     query_embedding = embedding_model.encode([query])
     distances, indices = index.search(query_embedding, k)
     
-    # Debug logs (can be commented out in production)
-    # print(f"Query: {query}")
-    # print(f"Distances trouvées: {distances[0]}")  
-
     # Seuil ajusté sur la meilleure correspondance
     threshold = 1.41  
 
     # Vérifier si le meilleur document est en dessous du seuil
     if distances[0][0] > threshold:
-        # print("Aucun document pertinent trouvé.")
         return [], []  
 
     return [documents[idx] for idx in indices[0]], distances[0]
@@ -88,7 +91,6 @@ def mistral_via_api(prompt):
         return response.json()[0]["generated_text"]
     else:
         return f"Error : {response.status_code} - {response.json()}"
-
 
 # Pipeline RAG amélioré - Réponse à la première personne
 def rag_pipeline(query, k=2):
@@ -140,6 +142,99 @@ Answer:"""
     
     return answer
 
+# Fonction pour transcrire l'audio avec Whisper
+def transcribe_audio(audio_file):
+    try:
+        transcription = client.automatic_speech_recognition(
+            audio=audio_file,
+            model="openai/whisper-large-v3-turbo",
+            generate_kwargs={"language": "english"}  # Utilisation de generate_kwargs
+        )
+        return transcription
+    except Exception as e:
+        print(f"Erreur lors de la transcription: {str(e)}")
+        return None
+
+
+# Fonction pour générer de l'audio à partir du texte
+def text_to_speech(text, voice="facebook/mms-tts-eng"):
+    try:
+        # Utiliser l'API Hugging Face pour la synthèse vocale
+        audio = client.text_to_speech(text, model=voice)
+        return audio
+    except Exception as e:
+        st.error(f"Error during speech synthesis: {str(e)}")
+        return None
+
+# Fonction pour créer un lecteur audio HTML à partir des données audio
+def record_audio(duration=5):
+    CHUNK = 1024
+    FORMAT = pyaudio.paInt16
+    CHANNELS = 1
+    RATE = 16000
+
+    # Assurons-nous que duration est un nombre (float ou int)
+    try:
+        duration = float(duration)  # Conversion explicite en float
+    except ValueError:
+        st.error("La valeur de 'duration' n'est pas un nombre valide.")
+        return None, None
+
+    p = pyaudio.PyAudio()
+
+    stream = p.open(format=FORMAT,
+                    channels=CHANNELS,
+                    rate=RATE,
+                    input=True,
+                    frames_per_buffer=CHUNK)
+
+    st.info(f"Enregistrement en cours... ({duration} secondes)")
+
+    frames = []
+
+    # Vérification après conversion de duration
+    try:
+        for i in range(0, int(RATE / CHUNK * duration)):
+            data = stream.read(CHUNK)
+            frames.append(data)
+    except TypeError as e:
+        st.error(f"Erreur avec la multiplication des valeurs : {e}")
+        return None, None
+
+    stream.stop_stream()
+    stream.close()
+    p.terminate()
+
+    audio_bytes = b''.join(frames)
+
+    return audio_bytes, RATE
+
+# Improved audio player function with unique ID generation
+def get_audio_player_html(audio_bytes):
+    if audio_bytes is None:
+        return None
+    
+    # Generate a truly unique ID using timestamp
+    unique_id = f"audio_{int(time.time() * 1000)}"
+    
+    # Encode to base64 for HTML
+    b64 = base64.b64encode(audio_bytes).decode()
+    
+    # Create HTML audio player with unique ID and autoplay
+    audio_player = f"""
+    <audio id="{unique_id}" controls autoplay="true">
+        <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+        Your browser does not support the audio element.
+    </audio>
+    <script>
+        // Force the browser to recognize the new audio element
+        document.getElementById("{unique_id}").load();
+    </script>
+    """
+    
+    return audio_player
+
+
 # Configuration de la page Streamlit
 st.set_page_config(layout="wide")
 
@@ -167,22 +262,169 @@ st.markdown(
         padding: 20px;
         margin-top: 20px;
     }
+    .tab-container {
+        border-radius: 10px;
+        padding: 20px;
+        margin-top: 10px;
+    }
+    .recorder-button {
+        background-color: #ff4b4b;
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 60px;
+        height: 60px;
+        font-size: 24px;
+        cursor: pointer;
+        margin: 10px auto;
+        display: block;
+    }
+    .recorder-button.recording {
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0% {
+            box-shadow: 0 0 0 0 rgba(255, 75, 75, 0.7);
+        }
+        70% {
+            box-shadow: 0 0 0 10px rgba(255, 75, 75, 0);
+        }
+        100% {
+            box-shadow: 0 0 0 0 rgba(255, 75, 75, 0);
+        }
+    }
     </style>
     """,
     unsafe_allow_html=True
 )
 
 st.markdown('<h1 class="centered h1">Welcome to, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span></h1>', unsafe_allow_html=True)
-st.markdown('<p class="centered p">here is <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, an AI in the image of Romain Dujardin. Ask him questions in English and he will answer them as best he can.</p>', unsafe_allow_html=True)
+st.markdown('<p class="centered p">here is <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, an AI in the image of Romain Dujardin. Ask questions in English and he will answer them as best he can.</p>', unsafe_allow_html=True)
 
-# Champ de texte pour l'utilisateur
-query = st.text_input("Your question:")
+# Créer des onglets pour les différentes méthodes d'interaction
+tabs = st.tabs(["Text Input", "Voice Input"])
 
-if query:
-    with st.spinner("Thinking..."):
-        answer = rag_pipeline(query)
+with tabs[0]:
+    st.markdown('<div class="tab-container">', unsafe_allow_html=True)
+    # Onglet pour l'entrée de texte
+    query = st.text_input("Your question:")
     
-    # Afficher uniquement la réponse dans une belle boîte
-    st.markdown('<div class="answer-box">', unsafe_allow_html=True)
-    st.write(answer)
+    if query:
+        with st.spinner("Thinking..."):
+            answer = rag_pipeline(query)
+        
+        # Afficher la réponse textuelle
+        st.markdown('<div class="answer-box">', unsafe_allow_html=True)
+        st.write(answer)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Option pour écouter la réponse
+        if st.button("Listen to the answer"):
+            with st.spinner("Generating audio..."):
+                audio_bytes = text_to_speech(answer)
+                if audio_bytes:
+                    st.markdown(get_audio_player_html(audio_bytes), unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
+
+with tabs[1]:
+    st.markdown('<div class="tab-container">', unsafe_allow_html=True)
+    # Onglet pour l'entrée vocale
+    st.subheader("Ask your question by voice")
+    # Create a container for the audio player that will be updated with each recording
+    audio_player_container = st.empty()
+    text_results_container = st.empty()
+    
+    if st.button("🎤", key="record_button", help="Click to start recording"):
+        # Audio recording
+        with st.spinner("Recording..."):
+            audio_bytes, sample_rate = record_audio(duration=5)
+            
+            if audio_bytes and sample_rate:
+                # Process the audio without displaying intermediate steps
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+                    temp_audio_path = temp_audio.name
+                    with wave.open(temp_audio_path, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)  # 16-bit
+                        wf.setframerate(sample_rate)
+                        wf.writeframes(audio_bytes)
+                
+                # Transcribe silently
+                with open(temp_audio_path, "rb") as audio_file:
+                    with st.spinner("Processing..."):
+                        transcription = transcribe_audio(audio_file.read())
+                
+                if transcription:
+                    # Process in background
+                    with st.spinner("Thinking..."):
+                        answer = rag_pipeline(transcription)
+                    
+                    # Generate voice response
+                    with st.spinner("Generating voice response..."):
+                        audio_response = text_to_speech(answer, voice="facebook/mms-tts-eng")
+                        
+                        if audio_response:
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander("Show text details"):
+                                st.write("Your question:", transcription)
+                                st.write("Response:", answer)
+                else:
+                    st.error("No transcription was generated. Please try again.")
+                
+                # Cleanup
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
+            else:
+                st.error("Recording failed. Please try again.")
+    else:
+        # Allow users to upload audio files as an alternative
+        uploaded_file = st.file_uploader("Or upload an audio file", type=["mp3", "wav", "m4a"])
+        if uploaded_file is not None:
+            with st.spinner("Processing uploaded audio..."):
+                # Process the uploaded file
+                transcription = transcribe_audio(uploaded_file)
+                
+                if transcription:
+                    with st.spinner("Thinking..."):
+                        answer = rag_pipeline(transcription)
+                    
+                    with st.spinner("Generating voice response..."):
+                        audio_response = text_to_speech(answer)
+                        
+                        if audio_response:
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander("Show text details"):
+                                st.write("Your question:", transcription)
+                                st.write("Response:", answer)
+                else:
+                    st.error("No transcription was generated from the uploaded file.")
+                    
+    st.markdown('</div>', unsafe_allow_html=True)
+
+# Ajouter un script JavaScript pour recevoir les données audio de l'enregistreur
+st.markdown(
+    """
+    <script>
+    // Écouter les messages depuis l'iframe
+    window.addEventListener('message', function(event) {
+        if (event.data.type === 'streamlit:setComponentValue') {
+            // Stocker les données audio dans la session state
+            window.parent.postMessage({
+                type: "streamlit:setComponentValue",
+                value: event.data.value,
+                key: "audio_data"
+            }, "*");
+        }
+    });
+    </script>
+    """,
+    unsafe_allow_html=True
+)
