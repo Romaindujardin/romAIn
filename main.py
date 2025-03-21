@@ -147,8 +147,8 @@ def transcribe_audio(audio_file):
     try:
         transcription = client.automatic_speech_recognition(
             audio=audio_file,
-            model="openai/whisper-large-v3-turbo",
-            generate_kwargs={"language": "english"}  # Utilisation de generate_kwargs
+            model="openai/whisper-large-v3-turbo"
+              # Utilisation de generate_kwargs
         )
         return transcription
     except Exception as e:
