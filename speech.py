@@ -165,7 +165,6 @@ def text_to_speech(text, voice="facebook/mms-tts-eng"):
         return None
 
 # Fonction pour créer un lecteur audio HTML à partir des données audio
-# Fonction pour enregistrer l'audio
 def record_audio(duration=5):
     CHUNK = 1024
     FORMAT = pyaudio.paInt16
@@ -208,23 +207,27 @@ def record_audio(duration=5):
 
     return audio_bytes, RATE
 
-# Fonction pour créer un lecteur audio HTML à partir des données audio
+# Improved audio player function with unique ID generation
 def get_audio_player_html(audio_bytes):
     if audio_bytes is None:
         return None
     
-    # Assure-toi que unique_id est bien défini
+    # Generate a truly unique ID using timestamp
     unique_id = f"audio_{int(time.time() * 1000)}"
     
-    # Encodage en base64 pour l'HTML
+    # Encode to base64 for HTML
     b64 = base64.b64encode(audio_bytes).decode()
     
-    # Création du lecteur audio HTML
+    # Create HTML audio player with unique ID and autoplay
     audio_player = f"""
-    <audio controls autoplay="true">
+    <audio id="{unique_id}" controls autoplay="true">
         <source src="data:audio/wav;base64,{b64}" type="audio/wav">
-        Votre navigateur ne supporte pas l'élément audio.
+        Your browser does not support the audio element.
     </audio>
+    <script>
+        // Force the browser to recognize the new audio element
+        document.getElementById("{unique_id}").load();
+    </script>
     """
     
     return audio_player
@@ -325,50 +328,56 @@ with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     # Onglet pour l'entrée vocale
     st.subheader("Ask your question by voice")
+    # Create a container for the audio player that will be updated with each recording
+    audio_player_container = st.empty()
+    text_results_container = st.empty()
     
     if st.button("🎤", key="record_button", help="Click to start recording"):
-        # Enregistrement audio
+        # Audio recording
         with st.spinner("Recording..."):
             audio_bytes, sample_rate = record_audio(duration=5)
             
-            # Process the audio without displaying intermediate steps
-            with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
-                temp_audio_path = temp_audio.name
-                with wave.open(temp_audio_path, 'wb') as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)  # 16-bit
-                    wf.setframerate(sample_rate)
-                    wf.writeframes(audio_bytes)
-            
-            # Transcribe silently
-            with open(temp_audio_path, "rb") as audio_file:
-                with st.spinner("Processing..."):
-                    transcription = transcribe_audio(audio_file.read())
-            
-            if transcription:
-                # Process in background
-                with st.spinner("Thinking..."):
-                    answer = rag_pipeline(transcription)
+            if audio_bytes and sample_rate:
+                # Process the audio without displaying intermediate steps
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+                    temp_audio_path = temp_audio.name
+                    with wave.open(temp_audio_path, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)  # 16-bit
+                        wf.setframerate(sample_rate)
+                        wf.writeframes(audio_bytes)
                 
-                # Generate and play audio response directly
-                with st.spinner("Generating voice response..."):
-                    audio_response = text_to_speech(answer, voice="facebook/mms-tts-eng")  # English voice
+                # Transcribe silently
+                with open(temp_audio_path, "rb") as audio_file:
+                    with st.spinner("Processing..."):
+                        transcription = transcribe_audio(audio_file.read())
+                
+                if transcription:
+                    # Process in background
+                    with st.spinner("Thinking..."):
+                        answer = rag_pipeline(transcription)
                     
-                    if audio_response:
-                        # Display only the audio player with a unique key
-                        unique_key = f"audio_player_{int(time.time())}"
-                        st.markdown(get_audio_player_html(audio_response), unsafe_allow_html=True)
+                    # Generate voice response
+                    with st.spinner("Generating voice response..."):
+                        audio_response = text_to_speech(answer, voice="facebook/mms-tts-eng")
                         
-                        # Optional: Hidden expandable section for text
-                        with st.expander("Show text details"):
-                            st.write("Your question:", transcription)
-                            st.write("Response:", answer)
+                        if audio_response:
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander("Show text details"):
+                                st.write("Your question:", transcription)
+                                st.write("Response:", answer)
+                else:
+                    st.error("No transcription was generated. Please try again.")
+                
+                # Cleanup
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
             else:
-                st.error("No transcription was generated. Please try again.")
-            
-            # Cleanup
-            if os.path.exists(temp_audio_path):
-                os.unlink(temp_audio_path)
+                st.error("Recording failed. Please try again.")
     else:
         # Allow users to upload audio files as an alternative
         uploaded_file = st.file_uploader("Or upload an audio file", type=["mp3", "wav", "m4a"])
@@ -382,23 +391,21 @@ with tabs[1]:
                         answer = rag_pipeline(transcription)
                     
                     with st.spinner("Generating voice response..."):
-                        unique_id = f"audio_response_{int(time.time() * 1000)}"
                         audio_response = text_to_speech(answer)
                         
                         if audio_response:
-                            # Display only the audio player
-                            st.markdown(
-                                get_audio_player_html(audio_response, unique_id), 
-                                unsafe_allow_html=True
-                            )
-                            # Optional: Hidden expandable section for text details
-                            with st.expander("Show text details"):
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander("Show text details"):
                                 st.write("Your question:", transcription)
                                 st.write("Response:", answer)
                 else:
                     st.error("No transcription was generated from the uploaded file.")
                     
-        st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 # Ajouter un script JavaScript pour recevoir les données audio de l'enregistreur
 st.markdown(
