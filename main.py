@@ -41,7 +41,6 @@ st.markdown(
         font-size: 1vw;
     }
     .stTextInput > div > div > input {
-        background-color: #f0f2f6;
         border-radius: 10px;
         padding: 15px;
         font-size: 16px;
@@ -97,13 +96,6 @@ st.markdown(
 # Language selection in the top-right corner
 st.markdown(
     """
-    <div class="language-selector">
-        <div id="language-buttons">
-            <button onclick="changeLanguage('FR')" style="padding: 5px 10px; margin-right: 5px; background-color: #f0f2f6; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;">🇫🇷 FR</button>
-            <button onclick="changeLanguage('EN')" style="padding: 5px 10px; background-color: #f0f2f6; border: 1px solid #ddd; border-radius: 5px; cursor: pointer;">🇬🇧 EN</button>
-        </div>
-    </div>
-    
     <script>
     function changeLanguage(lang) {
         // Use Streamlit's setComponentValue to update the session state
