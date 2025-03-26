@@ -461,44 +461,6 @@ def get_audio_player_html(audio_bytes):
     
     return audio_player
 
-def process_audio_input(audio_bytes, lang='EN'):
-    """
-    Process audio input from Streamlit's audio input
-    
-    Args:
-        audio_bytes (bytes): Audio bytes from st.audio_input
-        lang (str): Language of interaction (default 'EN')
-    
-    Returns:
-        tuple: (transcription, answer, audio_response)
-    """
-    if audio_bytes is None:
-        return None, None, None
-    
-    try:
-        # Transcribe the audio
-        with st.spinner(UI_TEXT[lang]["processing_upload"]):
-            transcription = transcribe_audio(audio_bytes, lang=lang)
-        
-        if transcription:
-            # Generate response using RAG pipeline
-            with st.spinner(UI_TEXT[lang]["thinking"]):
-                answer = rag_pipeline(transcription, lang=lang)
-            
-            # Generate voice response
-            with st.spinner(UI_TEXT[lang]["generating_voice"]):
-                audio_response = text_to_speech(answer, lang=lang)
-            
-            return transcription, answer, audio_response
-        
-        else:
-            st.error(UI_TEXT[lang]["upload_error"])
-            return None, None, None
-    
-    except Exception as e:
-        st.error(f"Error processing audio: {str(e)}")
-        return None, None, None
-
 # Display the main page content
 st.markdown(f'<h1 class="centered h1">{UI_TEXT[CURRENT_LANG]["title"]}</h1>', unsafe_allow_html=True)
 st.markdown(f'<p class="centered p">{UI_TEXT[CURRENT_LANG]["subtitle"]}</p>', unsafe_allow_html=True)
@@ -532,28 +494,83 @@ with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     # Tab for voice input
     st.subheader(UI_TEXT[CURRENT_LANG]["voice_subtitle"])
-    
-    # Create containers for results
+    # Create a container for the audio player that will be updated with each recording
     audio_player_container = st.empty()
     text_results_container = st.empty()
     
-    # Use Streamlit's audio input for cloud compatibility
-    audio_input = st.audio_input(label="🎤 " + UI_TEXT[CURRENT_LANG]["voice_subtitle"])
-    
-    if audio_input:
-        # Process the audio input
-        transcription, answer, audio_response = process_audio_input(audio_input, lang=CURRENT_LANG)
-        
-        if transcription and answer and audio_response:
-            # Update audio player
-            audio_player_html = get_audio_player_html(audio_response)
-            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+    if st.button("🎤", key="record_button", help="Click to start recording"):
+        # Audio recording
+        with st.spinner(UI_TEXT[CURRENT_LANG]["recording"]):
+            audio_bytes, sample_rate = record_audio(duration=5)
             
-            # Show details in an expandable section
-            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                st.write(f"{UI_TEXT[CURRENT_LANG]['your_question']} {transcription}")
-                st.write(f"{UI_TEXT[CURRENT_LANG]['response']} {answer}")
-    
+            if audio_bytes and sample_rate:
+                # Process the audio without displaying intermediate steps
+                with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_audio:
+                    temp_audio_path = temp_audio.name
+                    with wave.open(temp_audio_path, 'wb') as wf:
+                        wf.setnchannels(1)
+                        wf.setsampwidth(2)  # 16-bit
+                        wf.setframerate(sample_rate)
+                        wf.writeframes(audio_bytes)
+                
+                # Transcribe silently
+                with open(temp_audio_path, "rb") as audio_file:
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
+                        transcription = transcribe_audio(audio_file.read(), lang=CURRENT_LANG)
+                
+                if transcription:
+                    # Process in background
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
+                        answer = rag_pipeline(transcription, lang=CURRENT_LANG)
+                    
+                    # Generate voice response
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                        audio_response = text_to_speech(answer, lang=CURRENT_LANG)
+                        
+                        if audio_response:
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                                st.write(f"{UI_TEXT[CURRENT_LANG]['your_question']} {transcription}")
+                                st.write(f"{UI_TEXT[CURRENT_LANG]['response']} {answer}")
+                else:
+                    st.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
+                
+                # Cleanup
+                if os.path.exists(temp_audio_path):
+                    os.unlink(temp_audio_path)
+            else:
+                st.error(UI_TEXT[CURRENT_LANG]["recording_failed"])
+    else:
+        # Allow users to upload audio files as an alternative
+        uploaded_file = st.file_uploader(UI_TEXT[CURRENT_LANG]["upload_audio"], type=["mp3", "wav", "m4a"])
+        if uploaded_file is not None:
+            with st.spinner(UI_TEXT[CURRENT_LANG]["processing_upload"]):
+                # Process the uploaded file
+                transcription = transcribe_audio(uploaded_file, lang=CURRENT_LANG)
+                
+                if transcription:
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
+                        answer = rag_pipeline(transcription, lang=CURRENT_LANG)
+                    
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                        audio_response = text_to_speech(answer, lang=CURRENT_LANG)
+                        
+                        if audio_response:
+                            # Update the audio player container with new content
+                            audio_player_html = get_audio_player_html(audio_response)
+                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
+                            
+                            # Update the text container with expandable details
+                            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                                st.write(UI_TEXT[CURRENT_LANG]["your_question"], transcription)
+                                st.write(UI_TEXT[CURRENT_LANG]["response"], answer)
+                else:
+                    st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
+                    
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Ajouter un script JavaScript pour recevoir les données audio de l'enregistreur
