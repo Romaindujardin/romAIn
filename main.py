@@ -391,50 +391,82 @@ def text_to_speech(text, lang='EN'):
         return None
 
 # Function to record audio
-def record_audio(duration=5):
-    CHUNK = 1024
-    FORMAT = pyaudio.paInt16
-    CHANNELS = 1
-    RATE = 16000
+def record_audio(duration=5, local_mode=True):
+    """
+    Record audio with cross-platform support.
+    
+    Args:
+        duration (int/float): Recording duration in seconds (only used in local mode)
+        local_mode (bool): Whether to use PyAudio (local) or Streamlit audio input (cloud)
+    
+    Returns:
+        tuple: (audio_bytes, sample_rate) or (None, None) if recording fails
+    """
+    if local_mode:
+        try:
+            import pyaudio
+            import wave
+        except ImportError:
+            st.error("PyAudio is not available. Using Streamlit audio input.")
+            return None, None
 
-    # Make sure that duration is a number (float or int)
-    try:
-        duration = float(duration)  # Explicit conversion to float
-    except ValueError:
-        error_msg = "The 'duration' value is not a valid number." if CURRENT_LANG == 'EN' else "La valeur de 'duration' n'est pas un nombre valide."
-        st.error(error_msg)
+        CHUNK = 1024
+        FORMAT = pyaudio.paInt16
+        CHANNELS = 1
+        RATE = 16000
+
+        # Make sure that duration is a number (float or int)
+        try:
+            duration = float(duration)  # Explicit conversion to float
+        except ValueError:
+            error_msg = "The 'duration' value is not a valid number." if CURRENT_LANG == 'EN' else "La valeur de 'duration' n'est pas un nombre valide."
+            st.error(error_msg)
+            return None, None
+
+        p = pyaudio.PyAudio()
+
+        stream = p.open(format=FORMAT,
+                        channels=CHANNELS,
+                        rate=RATE,
+                        input=True,
+                        frames_per_buffer=CHUNK)
+
+        recording_msg = f"Recording in progress... ({duration} seconds)" if CURRENT_LANG == 'EN' else f"Enregistrement en cours... ({duration} secondes)"
+        st.info(recording_msg)
+
+        frames = []
+
+        # Verification after duration conversion
+        try:
+            for i in range(0, int(RATE / CHUNK * duration)):
+                data = stream.read(CHUNK)
+                frames.append(data)
+        except TypeError as e:
+            error_msg = f"Error with value multiplication: {e}" if CURRENT_LANG == 'EN' else f"Erreur avec la multiplication des valeurs: {e}"
+            st.error(error_msg)
+            return None, None
+
+        stream.stop_stream()
+        stream.close()
+        p.terminate()
+
+        audio_bytes = b''.join(frames)
+
+        return audio_bytes, RATE
+    
+    else:
+        # Streamlit cloud mode using st.audio_input
+        audio_value = st.audio_input("Record a voice message", 
+                                     key="cloud_audio_recorder", 
+                                     sample_rate=16000, 
+                                     sample_width=2,  # 16-bit
+                                     channels=1)
+        
+        if audio_value is not None:
+            # Convert Streamlit audio input to bytes
+            return audio_value.getvalue(), 16000
+        
         return None, None
-
-    p = pyaudio.PyAudio()
-
-    stream = p.open(format=FORMAT,
-                    channels=CHANNELS,
-                    rate=RATE,
-                    input=True,
-                    frames_per_buffer=CHUNK)
-
-    recording_msg = f"Recording in progress... ({duration} seconds)" if CURRENT_LANG == 'EN' else f"Enregistrement en cours... ({duration} secondes)"
-    st.info(recording_msg)
-
-    frames = []
-
-    # Verification after duration conversion
-    try:
-        for i in range(0, int(RATE / CHUNK * duration)):
-            data = stream.read(CHUNK)
-            frames.append(data)
-    except TypeError as e:
-        error_msg = f"Error with value multiplication: {e}" if CURRENT_LANG == 'EN' else f"Erreur avec la multiplication des valeurs: {e}"
-        st.error(error_msg)
-        return None, None
-
-    stream.stop_stream()
-    stream.close()
-    p.terminate()
-
-    audio_bytes = b''.join(frames)
-
-    return audio_bytes, RATE
 
 # Improved audio player function with unique ID generation
 def get_audio_player_html(audio_bytes):
@@ -494,14 +526,20 @@ with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     # Tab for voice input
     st.subheader(UI_TEXT[CURRENT_LANG]["voice_subtitle"])
+    
     # Create a container for the audio player that will be updated with each recording
     audio_player_container = st.empty()
     text_results_container = st.empty()
     
-    if st.button("🎤", key="record_button", help="Click to start recording"):
-        # Audio recording
-        with st.spinner(UI_TEXT[CURRENT_LANG]["recording"]):
-            audio_bytes, sample_rate = record_audio(duration=5)
+    # Try local recording first, fallback to Streamlit audio input
+    try:
+        if st.button("🎤", key="record_button", help="Click to start recording"):
+            # Attempt local recording first
+            audio_bytes, sample_rate = record_audio(duration=5, local_mode=True)
+            
+            # If local recording fails, try Streamlit audio input
+            if audio_bytes is None:
+                audio_bytes, sample_rate = record_audio(duration=5, local_mode=False)
             
             if audio_bytes and sample_rate:
                 # Process the audio without displaying intermediate steps
@@ -544,33 +582,35 @@ with tabs[1]:
                     os.unlink(temp_audio_path)
             else:
                 st.error(UI_TEXT[CURRENT_LANG]["recording_failed"])
-    else:
-        # Allow users to upload audio files as an alternative
-        uploaded_file = st.file_uploader(UI_TEXT[CURRENT_LANG]["upload_audio"], type=["mp3", "wav", "m4a"])
-        if uploaded_file is not None:
-            with st.spinner(UI_TEXT[CURRENT_LANG]["processing_upload"]):
-                # Process the uploaded file
-                transcription = transcribe_audio(uploaded_file, lang=CURRENT_LANG)
+    except Exception as e:
+        st.error(f"Recording error: {str(e)}")
+    
+    # Existing audio file upload option
+    uploaded_file = st.file_uploader(UI_TEXT[CURRENT_LANG]["upload_audio"], type=["mp3", "wav", "m4a"])
+    if uploaded_file is not None:
+        with st.spinner(UI_TEXT[CURRENT_LANG]["processing_upload"]):
+            # Process the uploaded file
+            transcription = transcribe_audio(uploaded_file, lang=CURRENT_LANG)
+            
+            if transcription:
+                with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
+                    answer = rag_pipeline(transcription, lang=CURRENT_LANG)
                 
-                if transcription:
-                    with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                        answer = rag_pipeline(transcription, lang=CURRENT_LANG)
+                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                    audio_response = text_to_speech(answer, lang=CURRENT_LANG)
                     
-                    with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
-                        audio_response = text_to_speech(answer, lang=CURRENT_LANG)
+                    if audio_response:
+                        # Update the audio player container with new content
+                        audio_player_html = get_audio_player_html(audio_response)
+                        audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
                         
-                        if audio_response:
-                            # Update the audio player container with new content
-                            audio_player_html = get_audio_player_html(audio_response)
-                            audio_player_container.markdown(audio_player_html, unsafe_allow_html=True)
-                            
-                            # Update the text container with expandable details
-                            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                                st.write(UI_TEXT[CURRENT_LANG]["your_question"], transcription)
-                                st.write(UI_TEXT[CURRENT_LANG]["response"], answer)
-                else:
-                    st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
-                    
+                        # Update the text container with expandable details
+                        with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                            st.write(UI_TEXT[CURRENT_LANG]["your_question"], transcription)
+                            st.write(UI_TEXT[CURRENT_LANG]["response"], answer)
+            else:
+                st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
+                
     st.markdown('</div>', unsafe_allow_html=True)
 
 # Ajouter un script JavaScript pour recevoir les données audio de l'enregistreur
