@@ -215,7 +215,7 @@ index, current_documents = build_faiss_index(documents)
 def find_relevant_docs(query, k=2): # Kept the same
     query_embedding = embedding_model.encode([query])
     distances, indices = index.search(query_embedding, k)
-    threshold = 1.41
+    threshold = 1.81
     if distances.size == 0 or distances[0][0] > threshold:
         return [], []
     return [current_documents[idx] for idx in indices[0] if idx < len(current_documents)], distances[0]
