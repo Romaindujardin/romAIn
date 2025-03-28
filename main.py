@@ -66,7 +66,7 @@ UI_TEXT = {
         'listen_button': 'Listen to the answer',
         'generating_audio': 'Generating audio...',
         'voice_subtitle': 'Ask your question by voice',
-        'record_instruction': 'Use the recorder below to ask your question:', # Updated instruction slightly
+        'record_instruction': 'Use the recorder below to ask your question (Start Recording to throw and stop to stop) :', # Updated instruction slightly
         'processing': 'Processing audio...',
         'generating_voice': 'Generating voice response...',
         'show_details': 'Show text details',
@@ -91,7 +91,7 @@ UI_TEXT = {
         'listen_button': 'Écouter la réponse',
         'generating_audio': 'Génération de l\'audio...',
         'voice_subtitle': 'Posez votre question par la voix',
-        'record_instruction': 'Utilisez l\'enregistreur ci-dessous pour poser votre question :', # Updated instruction slightly
+        'record_instruction': 'Utilisez l\'enregistreur ci-dessous pour poser votre question (Start recording pour lancer et Stop pour arrêter) :', # Updated instruction slightly
         'processing': 'Traitement de l\'audio...',
         'generating_voice': 'Génération de la réponse vocale...',
         'show_details': 'Afficher les détails du texte',
@@ -442,10 +442,10 @@ with tabs[1]:
                 # C'est PROBABLEMENT la première tentative après la demande de permission
                 audio_message_placeholder.info(
                     "🎤 Microphone prêt ! Si vous venez d'accorder la permission, "
-                    "veuillez **cliquer à nouveau sur 'Start recording'** pour enregistrer votre question."
+                    "veuillez **cliquer sur 'Reset' et à nouveau sur 'Start recording'** pour enregistrer votre question."
                     if CURRENT_LANG == 'FR' else
                     "🎤 Microphone ready! If you just granted permission, "
-                    "please **click 'Start recording' again** to record your question."
+                    "please **Click on 'Reset' and again on 'Start Recording'** to record your question."
                 )
                 # On considère que la vérification a eu lieu, même si l'enregistrement a échoué.
                 # La prochaine tentative échouée sera considérée comme un vrai échec.
