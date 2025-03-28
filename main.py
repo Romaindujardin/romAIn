@@ -22,6 +22,10 @@ st.set_page_config(layout="wide")
 if 'language' not in st.session_state:
     st.session_state['language'] = 'EN'
 
+# Flag pour gérer la première tentative d'enregistrement audio
+if 'audio_permission_checked' not in st.session_state:
+    st.session_state['audio_permission_checked'] = False
+
 # --- Styling (gardé identique) ---
 st.markdown(
     """
@@ -307,11 +311,11 @@ def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
     # --- Cleaning (gardé identique mais avec plus de logging) ---
     if lang == 'FR':
         unwanted = ["En tant que Romain Dujardin,", "En tant que Romain, ", "Basé sur le contexte,", "Selon le contexte,", "D'après le contexte,", "Réponse:", "..."]
-        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Je") # Attention avec replace Romain -> Je
+        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Romain") # Attention avec replace Romain -> Je
         answer = answer.replace("il est", "je suis").replace("il a", "j'ai")
     else:
         unwanted = ["As Romain Dujardin,", "As Romain, ", "Based on the context,", "According to the context,", "Answer:", "..."]
-        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "I") # Attention avec replace Romain -> I
+        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "Romain") # Attention avec replace Romain -> I
         answer = answer.replace("he is", "I am").replace("he has", "I have")
 
     cleaned_answer = answer
@@ -339,8 +343,13 @@ def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
 
 
 # --- Main App Layout (gardé identique) ---
-st.markdown(f'<h1 class="centered h1">{UI_TEXT[CURRENT_LANG]["title"]}</h1>', unsafe_allow_html=True)
-st.markdown(f'<p class="centered p">{UI_TEXT[CURRENT_LANG]["subtitle"]}</p>', unsafe_allow_html=True)
+st.markdown(
+    f'<div style="text-align: center;">'
+    f'<h1 class="centered h1">{UI_TEXT[CURRENT_LANG]["title"]}</h1>'
+    f'<p class="centered p">{UI_TEXT[CURRENT_LANG]["subtitle"]}</p>'
+    f'</div>',
+    unsafe_allow_html=True
+)
 
 tab_titles = [UI_TEXT[CURRENT_LANG]["text_tab"], UI_TEXT[CURRENT_LANG]["voice_tab"]]
 tabs = st.tabs(tab_titles)
@@ -372,54 +381,78 @@ with tabs[1]:
 
     audio_player_container = st.container()
     text_results_container = st.container()
+    # Placeholder pour le message d'information/erreur spécifique à l'audio
+    audio_message_placeholder = st.empty()
 
     st.markdown(f"<p style='text-align: center;'>{UI_TEXT[CURRENT_LANG]['record_instruction']}</p>", unsafe_allow_html=True)
-    wav_audio_data = st_audiorec()
+    wav_audio_data = st_audiorec() # Peut retourner None ou des bytes
+
+    # Minimum expected size for a valid WAV recording (header + a tiny bit of data)
+    MIN_WAV_BYTES = 100
 
     if wav_audio_data is not None:
-        transcription = None
-        try:
-            with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
-                 transcription = transcribe_audio(wav_audio_data, lang=CURRENT_LANG)
-        except Exception as e:
-             st.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
-             transcription = None
+        # Vérifie si les données audio reçues sont potentiellement valides
+        is_valid_audio = isinstance(wav_audio_data, bytes) and len(wav_audio_data) > MIN_WAV_BYTES
 
-        if transcription and isinstance(transcription, str) and transcription.strip():
-            audio_player_container.empty()
-            with text_results_container: st.empty() # Clear previous results if any
+        if is_valid_audio:
+            # L'enregistrement semble valide, on considère que la permission est ok ou déjà donnée
+            st.session_state['audio_permission_checked'] = True
+            audio_message_placeholder.empty() # Efface les messages précédents
 
-            # --- Afficher la question transcrite ---
-            st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
+            transcription = None
+            try:
+                with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
+                     transcription = transcribe_audio(wav_audio_data, lang=CURRENT_LANG)
+            except Exception as e:
+                 # Affiche l'erreur DANS le placeholder dédié
+                 audio_message_placeholder.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
+                 transcription = None
 
-            with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
+            if transcription and isinstance(transcription, str) and transcription.strip():
+                audio_player_container.empty()
+                with text_results_container: st.empty()
 
-            # --- Afficher la réponse texte ---
-            st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
+                with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
+                    answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
 
-            with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
-                audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-                if audio_response:
-                    with audio_player_container:
-                         st.audio(audio_response, format="audio/wav")
-                else:
-                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error']) # Show warning if TTS fails
+                with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                    st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
+                    st.write(transcription)
+                    st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
+                    st.write(answer)
 
-            # --- Optionnel: Cacher les détails dans un expander si besoin ---
-            # Remplacer les st.write ci-dessus par ceci :
-            # with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-            #     st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-            #     st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
-            # if audio_response is None:
-            #      with text_results_container: # S'assure que l'erreur est visible hors de l'expander
-            #         st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                    audio_response = text_to_speech(answer, lang=CURRENT_LANG)
+                    if audio_response:
+                        with audio_player_container:
+                             st.audio(audio_response, format="audio/wav")
+                    else:
+                         # Affiche l'erreur TTS DANS le placeholder dédié
+                         audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
 
+            # Gère les cas où la transcription a échoué APRES un enregistrement valide
+            elif not transcription:
+                 audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
+            elif not transcription.strip():
+                 audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
 
-        elif transcription is None:
-            st.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
         else:
-             st.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
+            # L'enregistrement a retourné None ou des données invalides (très courtes)
+            if not st.session_state['audio_permission_checked']:
+                # C'est PROBABLEMENT la première tentative après la demande de permission
+                audio_message_placeholder.info(
+                    "🎤 Microphone prêt ! Si vous venez d'accorder la permission, "
+                    "veuillez **cliquer à nouveau sur 'Start recording'** pour enregistrer votre question."
+                    if CURRENT_LANG == 'FR' else
+                    "🎤 Microphone ready! If you just granted permission, "
+                    "please **click 'Start recording' again** to record your question."
+                )
+                # On considère que la vérification a eu lieu, même si l'enregistrement a échoué.
+                # La prochaine tentative échouée sera considérée comme un vrai échec.
+                st.session_state['audio_permission_checked'] = True
+            else:
+                # Ce n'est pas la première tentative, donc c'est un vrai échec d'enregistrement
+                 audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["recording_failed"] + " (No valid audio data received)")
 
     # --- Upload Option (gardé identique mais appelle rag_pipeline avec k=3) ---
     st.markdown("---")
@@ -442,15 +475,14 @@ with tabs[1]:
             audio_player_container.empty()
             with text_results_container: st.empty()
 
-             # --- Afficher la question transcrite ---
-            st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-
-
             with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
                 answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
 
-            # --- Afficher la réponse texte ---
-            st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
+            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
+                st.write(transcription)
+                st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
+                st.write(answer)
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
                 audio_response = text_to_speech(answer, lang=CURRENT_LANG)
@@ -458,15 +490,6 @@ with tabs[1]:
                      with audio_player_container: st.audio(audio_response, format="audio/wav")
                 else:
                      st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
-
-            # --- Optionnel: Expander ---
-            # with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-            #    st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-            #    st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
-            # if audio_response is None:
-            #      with text_results_container:
-            #          st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
-
 
         elif transcription is None:
             st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
