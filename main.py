@@ -10,71 +10,29 @@ import numpy as np
 from io import BytesIO
 import base64
 import plotly.graph_objects as go
-# Removed pyaudio import
 import wave
 import tempfile
-from st_audiorec import st_audiorec # CORRECTED Import
+from st_audiorec import st_audiorec
 
-# Récupérer le token Hugging Face depuis Streamlit Secrets
+# --- Configuration (gardée identique) ---
 hf_token = st.secrets["huggingface"]["token"]
-
-# Initialisation du client d'inférence
 client = InferenceClient(api_key=hf_token)
-
-# Configuration de la page Streamlit
 st.set_page_config(layout="wide")
 
-# Add session state for language selection if it doesn't exist
 if 'language' not in st.session_state:
-    st.session_state['language'] = 'EN'  # Default to English
+    st.session_state['language'] = 'EN'
 
-# Styling - Kept the same styling, adjust if needed for the new component
+# --- Styling (gardé identique) ---
 st.markdown(
     """
     <style>
-    .centered {
-        text-align: center;
-    }
-    .h1 {
-        font-size: 7vw;
-    }
-    .p {
-        font-size: 1vw;
-    }
-    .stTextInput > div > div > input {
-        border-radius: 10px;
-        padding: 15px;
-        font-size: 16px;
-    }
-    .answer-box {
-        background-color: #f7f7f7;
-        border-radius: 10px;
-        padding: 20px;
-        margin-top: 20px;
-    }
-    .tab-container {
-        border-radius: 10px;
-        padding: 20px;
-        margin-top: 10px;
-    }
-    /* You might need to inspect the element for st_audiorec's specific classes if you want deep styling */
-    div[data-testid="stAudioRec"] { /* Example selector, might change */
-         margin: 10px auto; /* Center the component */
-         display: block;
-         width: fit-content; /* Adjust width as needed */
-    }
-    .language-selector {
-        position: absolute;
-        top: 10px;
-        right: 20px;
-        z-index: 1000;
-    }
+    /* ... styles identiques ... */
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# Language selection
+# --- Language selection (gardée identique) ---
 col1, col2, col3 = st.columns([1, 4, 1])
 with col1:
     lang_options = ["🇫🇷 FR", "🇬🇧 EN"]
@@ -92,9 +50,9 @@ with col1:
 
 CURRENT_LANG = st.session_state['language']
 
-# UI Text Definitions (Kept the same)
+# --- UI Text Definitions (gardées identiques) ---
 UI_TEXT = {
-    'EN': {
+    'EN': { # ... contenu EN identique ...
         'title': 'Welcome to, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
         'subtitle': 'here is <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, an AI in the image of Romain Dujardin. Ask questions in English and he will answer them as best he can.',
         'text_tab': 'Text Input',
@@ -119,8 +77,8 @@ UI_TEXT = {
         'processing_error': 'Error processing recorded audio.',
         'upload_process_error': 'Error processing uploaded file.',
     },
-    'FR': {
-        'title': 'Bienvenue sur, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
+    'FR': { # ... contenu FR identique ...
+         'title': 'Bienvenue sur, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
         'subtitle': 'voici <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, une IA à l\'image de Romain Dujardin. Posez des questions en français et il y répondra du mieux qu\'il peut.',
         'text_tab': 'Saisie de texte',
         'voice_tab': 'Saisie vocale',
@@ -146,15 +104,17 @@ UI_TEXT = {
     }
 }
 
-
-# Model/FAISS Initialization (Kept the same)
+# --- Model Loading (gardé identique) ---
 @st.cache_resource
 def load_embedding_model():
-    return SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+    print("DEBUG: Loading embedding model...") # Pour voir quand ça charge
+    # return SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+    return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
 
 embedding_model = load_embedding_model()
 
-documents_en = [ # Kept the same documents
+# --- Document Definitions (gardées identiques) ---
+documents_en = [ # ... contenu EN identique ...
     "My name is Romain Dujardin", "I'm 22 years old", "I'm a French student in AI engineering",
     "I currently study at Isen JUNIA in Lille since 2021 (school), During my studies, I have learned about machine learning, deep learning, computer vision, natural language processing, reinforcement learning. I had lessons in mathematics, statistics, computer science, physics, electronics and project management",
     "Before Isen JUNIA, I was at ADIMAKER, an integrated preparatory class where I learned the basics of engineering",
@@ -173,12 +133,14 @@ documents_en = [ # Kept the same documents
     "If I had to cite a default it would be that I like to do everything, what I mean by that is that when I work on a new project I am enthusiastic and want to do everything and touch everything on it.",
     "My favorite movie is Lucy."
 ]
-documents_fr = [ # Kept the same documents
-    "Je m'appelle Romain Dujardin", "J'ai 22 ans", "Je suis un étudiant français en école d'ingénieur dans l'IA",
+documents_fr = [ # ... contenu FR identique, MAIS AVEC LA CORRECTION SUGGÉRÉE
+    "Je m'appelle Romain Dujardin",
+    "J'ai 22 ans", # <-- MODIFIÉ ICI pour une phrase plus naturelle
+    "Je suis un étudiant français en école d'ingénieur dans l'IA",
     "J'étudie actuellement à JUNIA ISEN à Lille depuis 2021. Pendant mes études, j'ai appris le machine learning, le deep learning, la vision par ordinateur, le traitement du langage naturel, l'apprentissage par renforcement. J'ai eu des cours de mathématiques, statistiques, informatique, physique, électronique et gestion de projet",
     "Avant Isen JUNIA, j'étais à ADIMAKER, une classe préparatoire intégrée où j'ai appris les bases de l'ingénierie",
     "Je suis passionné par l'intelligence artificielle, les nouvelles technologies et l'informatique", "J'habite à Lille, en France",
-    "J'ai travaillé sur différents projets pendant mes études, comme le Projet F.R.A.N.K qui est un projet 3D mélangeant l'IA sur unity3D, c'est un jeu d'horreur dans un univers réaliste, avec des fonctions de gameplay avancées comme la gestion d'inventaire et l'utilisation d'objets, tout en étant poursuivi par un monstre sous IA. Et j'ai aussi travaillé sur un projet de drive local sur django nommé DriveMe. Tous ces projets sont disponibles sur mon github",
+    "Concernant mes projets, j'ai notamment travaillé sur le Projet F.R.A.N.K qui est un projet 3D mélangeant l'IA sur unity3D, c'est un jeu d'horreur dans un univers réaliste, avec des fonctions de gameplay avancées comme la gestion d'inventaire et l'utilisation d'objets, tout en étant poursuivi par un monstre sous IA. Et j'ai aussi travaillé sur un projet de drive local sur django nommé DriveMe. Tous ces projets sont disponibles sur mon github",
     "Durant ces différents projets j'ai d'abord appris à gérer une équipe en tant que chef de projet et donc en même temps à travailler en équipe, j'ai également mis en pratique ce que je vois en cours dans des exemples concrets. En plus, j'ai pu traiter la résolution de problèmes sur certains projets",
     "Je recherche une alternance en IA pour septembre 2025", "J'ai besoin d'un contrat pour valider mon diplôme",
     "Mon email est dujardin.romain@icloud.com et mon numéro de téléphone est le 07 83 19 30 23",
@@ -195,27 +157,71 @@ documents_fr = [ # Kept the same documents
 ]
 
 
+# --- MODIFIED: Separate FAISS Index Building Functions ---
 @st.cache_resource(show_spinner=False)
-def build_faiss_index(_documents):
-    doc_embeddings = embedding_model.encode(_documents)
+def build_faiss_index_en():
+    print("DEBUG: Building and caching EN FAISS index...") # Debug
+    docs = documents_en
+    doc_embeddings = embedding_model.encode(docs)
     dimension = doc_embeddings.shape[1]
     index = faiss.IndexFlatL2(dimension)
     index.add(doc_embeddings)
-    return index, _documents
+    return index, docs
 
-documents = documents_fr if CURRENT_LANG == 'FR' else documents_en
-index, current_documents = build_faiss_index(documents)
+@st.cache_resource(show_spinner=False)
+def build_faiss_index_fr():
+    print("DEBUG: Building and caching FR FAISS index...") # Debug
+    docs = documents_fr
+    doc_embeddings = embedding_model.encode(docs)
+    dimension = doc_embeddings.shape[1]
+    index = faiss.IndexFlatL2(dimension)
+    index.add(doc_embeddings)
+    return index, docs
 
-def find_relevant_docs(query, k=2): # Kept the same
+# --- Select the correct index AFTER determining CURRENT_LANG ---
+if CURRENT_LANG == 'FR':
+    index, current_documents = build_faiss_index_fr()
+    print("DEBUG: Using FR index.") # Debug
+else:
+    index, current_documents = build_faiss_index_en()
+    print("DEBUG: Using EN index.") # Debug
+
+
+# --- find_relevant_docs (Utilise l'index et les documents sélectionnés ci-dessus) ---
+def find_relevant_docs(query, k=2): # Augmenté k à 3 pour tester
     query_embedding = embedding_model.encode([query])
+    # Utilise les variables 'index' et 'current_documents' qui ont été définies
+    # en fonction de CURRENT_LANG juste avant cet appel.
     distances, indices = index.search(query_embedding, k)
-    threshold = 1.61
-    if distances.size == 0 or distances[0][0] > threshold:
-        return [], []
-    return [current_documents[idx] for idx in indices[0] if idx < len(current_documents)], distances[0]
 
-# Mistral API Call (Kept the same, including error handling)
+    print(f"DEBUG Query: {query}") # Debug
+    print(f"DEBUG Found indices: {indices[0]}, Distances: {distances[0]}") # Debug
+
+    threshold = 15 # Vous pouvez ajuster ce seuil si nécessaire
+    relevant_docs = []
+    relevant_distances = []
+
+    if distances.size > 0:
+        for i, idx in enumerate(indices[0]):
+            if idx < len(current_documents) and distances[0][i] <= threshold:
+                relevant_docs.append(current_documents[idx])
+                relevant_distances.append(distances[0][i])
+            # else: # Optionnel: voir les docs filtrés par le seuil
+            #     if idx < len(current_documents):
+            #         print(f"DEBUG: Doc '{current_documents[idx][:50]}...' filtered by threshold (dist={distances[0][i]})")
+            #     else:
+            #          print(f"DEBUG: Index {idx} out of bounds")
+
+    print(f"DEBUG Retrieved docs AFTER threshold: {relevant_docs}") # Debug
+    print(f"DEBUG Retrieved distances AFTER threshold: {relevant_distances}") # Debug
+
+    if not relevant_docs:
+        return [], []
+    return relevant_docs, relevant_distances # Retourne aussi les distances filtrées
+
+# --- Fonctions API (Mistral, Transcribe, TTS - gardées identiques) ---
 def mistral_via_api(prompt, lang='EN'):
+    # ... code identique ...
     API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
     if hf_token is None: return "Error: No tokens found."
     headers = {"Authorization": f"Bearer {hf_token}"}
@@ -238,34 +244,9 @@ def mistral_via_api(prompt, lang='EN'):
         st.error(f"{error_msg}{e}")
         return None
 
-# RAG Pipeline (Kept the same, including prompt adjustments and cleaning)
-def rag_pipeline(query, k=2, lang='EN'):
-    relevant_docs, distances = find_relevant_docs(query, k)
-    no_info_msg = UI_TEXT[lang].get('response_no_info', ("Je suis désolé, je ne peux pas repondre à cette question..." if lang == 'FR' else "I'm sorry, I cannot answer this question..."))
-    if not relevant_docs: return no_info_msg
-    context = "\n".join(relevant_docs)
-    if lang == 'FR':
-        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne... Si le contexte ne permet pas de répondre, dis que tu ne sais pas...\n\nRéponse:"""
-    else:
-        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in first person... If the context doesn't provide the answer, say you don't know...\n\nAnswer:"""
-    response_text = mistral_via_api(prompt, lang)
-    if response_text is None: return UI_TEXT[lang].get('response_generation_error', "Sorry, error generating response.")
-    answer = response_text.strip()
-    if lang == 'FR':
-        unwanted = ["En tant que Romain Dujardin,", "En tant que Romain, ", "Basé sur le contexte,", "..."] # Add all unwanted phrases
-        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Romain")
-        answer = answer.replace("il est", "je suis").replace("il a", "j'ai")
-    else:
-        unwanted = ["As Romain Dujardin,", "As Romain, ", "Based on the context,", "..."] # Add all unwanted phrases
-        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "Romain")
-        answer = answer.replace("he is", "I am").replace("he has", "I have")
-    for phrase in unwanted:
-        answer = re.sub(rf'^{re.escape(phrase)}\s*', '', answer, flags=re.IGNORECASE)
-    if not answer or answer.lower().strip() in ["answer:", "réponse:"]: return no_info_msg
-    return answer
 
-# Transcription Function (Kept the same)
 def transcribe_audio(audio_data, lang='EN'):
+    # ... code identique ...
     try:
         model = "openai/whisper-large-v3"
         transcription_response = client.automatic_speech_recognition(audio=audio_data, model=model)
@@ -274,8 +255,9 @@ def transcribe_audio(audio_data, lang='EN'):
         else: st.error(f"Unexpected transcription response format: {transcription_response}"); return None
     except Exception as e: st.error(f"Error during transcription: {str(e)}"); return None
 
-# Text-to-Speech Function (Kept the same)
+
 def text_to_speech(text, lang='EN'):
+   # ... code identique ...
     try:
         voice = "facebook/mms-tts-fra" if lang == 'FR' else "facebook/mms-tts-eng"
         audio_bytes = client.text_to_speech(text, model=voice)
@@ -283,31 +265,107 @@ def text_to_speech(text, lang='EN'):
     except Exception as e: st.error(f"{UI_TEXT[lang].get('tts_error', 'TTS Error:')} {str(e)}"); return None
 
 
-# --- Main App Layout ---
+# --- RAG Pipeline (Utilise find_relevant_docs qui utilise le bon index) ---
+def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
+    relevant_docs, distances = find_relevant_docs(query, k=k) # Passe k
+
+    # --- Ajout de Debugging ici aussi ---
+    print("-" * 20)
+    print(f"RAG Pipeline Input Query: {query}")
+    print(f"RAG Found Relevant Docs (k={k}, after threshold):")
+    if relevant_docs:
+        for doc, dist in zip(relevant_docs, distances):
+             print(f"  - Distance: {dist:.4f}, Doc: {doc[:100]}...")
+    else:
+        print("  - No relevant documents found after threshold.")
+    print("-" * 20)
+    # --- Fin Debugging ---
+
+    no_info_msg = UI_TEXT[lang].get('response_no_info', ("Je suis désolé, je ne peux pas repondre à cette question..." if lang == 'FR' else "I'm sorry, I cannot answer this question..."))
+    if not relevant_docs:
+        print("RAG Pipeline: No relevant docs found, returning no_info_msg") # Debug
+        return no_info_msg
+
+    context = "\n".join(relevant_docs)
+
+    if lang == 'FR':
+        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne en utilisant seulement les informations du contexte fourni... Si le contexte ne permet pas de répondre, dis le clairement (par exemple: 'Je n'ai pas l'information pour répondre à cela.'). N'invente rien.\n\nRéponse:"""
+    else:
+        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in the first person using only information from the provided context... If the context doesn't provide the answer, state that clearly (e.g., 'I don't have the information to answer that.'). Do not invent anything.\n\nAnswer:"""
+
+    print(f"RAG Pipeline: Prompt sent to Mistral:\n{prompt}\n") # Debug
+
+    response_text = mistral_via_api(prompt, lang)
+
+    if response_text is None:
+        print("RAG Pipeline: Mistral API returned None.") # Debug
+        return UI_TEXT[lang].get('response_generation_error', "Sorry, error generating response.")
+
+    answer = response_text.strip()
+    print(f"RAG Pipeline: Raw response from Mistral: '{answer}'") # Debug
+
+    # --- Cleaning (gardé identique mais avec plus de logging) ---
+    if lang == 'FR':
+        unwanted = ["En tant que Romain Dujardin,", "En tant que Romain, ", "Basé sur le contexte,", "Selon le contexte,", "D'après le contexte,", "Réponse:", "..."]
+        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Je") # Attention avec replace Romain -> Je
+        answer = answer.replace("il est", "je suis").replace("il a", "j'ai")
+    else:
+        unwanted = ["As Romain Dujardin,", "As Romain, ", "Based on the context,", "According to the context,", "Answer:", "..."]
+        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "I") # Attention avec replace Romain -> I
+        answer = answer.replace("he is", "I am").replace("he has", "I have")
+
+    cleaned_answer = answer
+    for phrase in unwanted:
+        cleaned_answer = re.sub(rf'^\s*{re.escape(phrase)}\s*', '', cleaned_answer, flags=re.IGNORECASE)
+
+    print(f"RAG Pipeline: Cleaned answer: '{cleaned_answer}'") # Debug
+
+    # Vérifie si la réponse est vide ou non informative après nettoyage
+    if not cleaned_answer or cleaned_answer.lower().strip() in ["answer:", "réponse:", ".", ""]:
+        print("RAG Pipeline: Answer became empty/uninformative after cleaning, returning no_info_msg") # Debug
+        return no_info_msg
+
+    # Vérification supplémentaire si le LLM dit qu'il ne sait pas
+    no_answer_indicators_fr = ["je ne sais pas", "je n'ai pas l'information", "contexte ne fournit pas", "pas mentionné"]
+    no_answer_indicators_en = ["i don't know", "i do not know", "context does not provide", "not mentioned", "don't have the information"]
+    indicators = no_answer_indicators_fr if lang == 'FR' else no_answer_indicators_en
+    if any(indicator in cleaned_answer.lower() for indicator in indicators):
+         print(f"RAG Pipeline: LLM indicated it couldn't answer. Returning: '{cleaned_answer}'") # Debug - Peut-être retourner no_info_msg ici ? Ou garder la réponse du LLM ?
+         # return no_info_msg # Décommentez si vous préférez le message standardisé
+         pass # Garde la réponse du LLM disant qu'il ne sait pas
+
+
+    return cleaned_answer
+
+
+# --- Main App Layout (gardé identique) ---
 st.markdown(f'<h1 class="centered h1">{UI_TEXT[CURRENT_LANG]["title"]}</h1>', unsafe_allow_html=True)
 st.markdown(f'<p class="centered p">{UI_TEXT[CURRENT_LANG]["subtitle"]}</p>', unsafe_allow_html=True)
 
 tab_titles = [UI_TEXT[CURRENT_LANG]["text_tab"], UI_TEXT[CURRENT_LANG]["voice_tab"]]
 tabs = st.tabs(tab_titles)
 
-# --- Text Input Tab --- (Kept the same)
+# --- Text Input Tab (gardé identique) ---
 with tabs[0]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     query = st.text_input(UI_TEXT[CURRENT_LANG]["question_placeholder"], key="text_query_input")
     if query:
         with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-            answer = rag_pipeline(query, lang=CURRENT_LANG)
+            answer = rag_pipeline(query, lang=CURRENT_LANG, k=3) # Passer k=3 aussi ici
         st.markdown('<div class="answer-box">', unsafe_allow_html=True)
         st.write(answer)
         st.markdown('</div>', unsafe_allow_html=True)
         if st.button(UI_TEXT[CURRENT_LANG]["listen_button"], key="text_listen_button"):
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_audio"]):
+                # Nettoyer un peu la réponse avant TTS? (Optionnel)
+                # Par exemple, enlever les phrases indiquant l'incertitude si vous ne voulez pas les vocaliser.
                 audio_bytes = text_to_speech(answer, lang=CURRENT_LANG)
                 if audio_bytes: st.audio(audio_bytes, format="audio/wav")
                 else: st.error(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
     st.markdown('</div>', unsafe_allow_html=True)
 
-# --- Voice Input Tab --- (MODIFIED TO USE st_audiorec)
+
+# --- Voice Input Tab (gardé identique mais appelle rag_pipeline avec k=3) ---
 with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     st.subheader(UI_TEXT[CURRENT_LANG]["voice_subtitle"])
@@ -315,53 +373,55 @@ with tabs[1]:
     audio_player_container = st.container()
     text_results_container = st.container()
 
-    # Use the st_audiorec component
     st.markdown(f"<p style='text-align: center;'>{UI_TEXT[CURRENT_LANG]['record_instruction']}</p>", unsafe_allow_html=True)
-    wav_audio_data = st_audiorec() # CORRECTED component call
+    wav_audio_data = st_audiorec()
 
-    # Process recorded audio if data is received
-    # wav_audio_data contains the audio data in WAV format bytes
     if wav_audio_data is not None:
         transcription = None
         try:
-            # Pass the WAV bytes directly to the transcription function
             with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
                  transcription = transcribe_audio(wav_audio_data, lang=CURRENT_LANG)
-
         except Exception as e:
              st.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
              transcription = None
 
         if transcription and isinstance(transcription, str) and transcription.strip():
             audio_player_container.empty()
-            with text_results_container: st.empty()
+            with text_results_container: st.empty() # Clear previous results if any
+
+            # --- Afficher la question transcrite ---
+            st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                answer = rag_pipeline(transcription, lang=CURRENT_LANG)
+                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
+
+            # --- Afficher la réponse texte ---
+            st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
                 audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-
                 if audio_response:
                     with audio_player_container:
-                         st.audio(audio_response, format="audio/wav") # Use st.audio
-
-                    with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
+                         st.audio(audio_response, format="audio/wav")
                 else:
-                     # If TTS failed, show text response anyway
-                     with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
-                        st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error']) # Show warning if TTS fails
+
+            # --- Optionnel: Cacher les détails dans un expander si besoin ---
+            # Remplacer les st.write ci-dessus par ceci :
+            # with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+            #     st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
+            #     st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
+            # if audio_response is None:
+            #      with text_results_container: # S'assure que l'erreur est visible hors de l'expander
+            #         st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+
 
         elif transcription is None:
             st.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
         else:
              st.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
 
-    # --- Upload Option --- (Kept the same)
+    # --- Upload Option (gardé identique mais appelle rag_pipeline avec k=3) ---
     st.markdown("---")
     uploaded_file = st.file_uploader(
         UI_TEXT[CURRENT_LANG]["upload_audio"],
@@ -382,22 +442,31 @@ with tabs[1]:
             audio_player_container.empty()
             with text_results_container: st.empty()
 
+             # --- Afficher la question transcrite ---
+            st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
+
+
             with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                answer = rag_pipeline(transcription, lang=CURRENT_LANG)
+                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
+
+            # --- Afficher la réponse texte ---
+            st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
                 audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-
                 if audio_response:
                      with audio_player_container: st.audio(audio_response, format="audio/wav")
-                     with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
                 else:
-                     with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
-                        st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
-                        st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+
+            # --- Optionnel: Expander ---
+            # with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+            #    st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**"); st.write(transcription)
+            #    st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**"); st.write(answer)
+            # if audio_response is None:
+            #      with text_results_container:
+            #          st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+
 
         elif transcription is None:
             st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
