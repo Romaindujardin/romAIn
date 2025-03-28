@@ -245,9 +245,9 @@ def rag_pipeline(query, k=2, lang='EN'):
     if not relevant_docs: return no_info_msg
     context = "\n".join(relevant_docs)
     if lang == 'FR':
-        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne en te basant uniquement sur le context... Si le contexte ne permet pas de répondre, dis que tu ne sais pas...\n\nRéponse:"""
+        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne en te basant STRICTEMENT et EXCLUSIVEMENT sur les informations fournies dans le Contexte. N'utilise AUCUNE connaissance extérieure. Si l'information n'est PAS PRÉSENTE dans le contexte, réponds EXACTEMENT 'Je ne dispose pas de cette information dans mon contexte actuel.' NE spécule PAS et N'invente RIEN.\n\nRéponse:"""
     else:
-        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in first person Based only on the context... If the context doesn't provide the answer, say you don't know...\n\nAnswer:"""
+        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in first person based STRICTLY and EXCLUSIVELY on the information provided in the Context. Do NOT use any external knowledge. If the information is NOT PRESENT in the context, reply EXACTLY 'I do not have that information in my current context.' DO NOT speculate or invent anything.\n\nAnswer:"""
     response_text = mistral_via_api(prompt, lang)
     if response_text is None: return UI_TEXT[lang].get('response_generation_error', "Sorry, error generating response.")
     answer = response_text.strip()
