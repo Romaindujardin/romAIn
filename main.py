@@ -13,10 +13,31 @@ import plotly.graph_objects as go
 import wave
 import tempfile
 from st_audiorec import st_audiorec
+# --- NEW: Import ElevenLabs ---
+from elevenlabs.client import ElevenLabs
+# from elevenlabs import Voice, VoiceSettings # Keep if you want advanced settings
 
 # --- Configuration (gardée identique) ---
 hf_token = st.secrets["huggingface"]["token"]
 client = InferenceClient(api_key=hf_token)
+# --- NEW: Load ElevenLabs API Key ---
+elevenlabs_api_key = st.secrets.get("elevenlabs", {}).get("api_key")
+
+# --- Initialize HF Client (Still needed for ASR) ---
+if hf_token:
+    client = InferenceClient(api_key=hf_token)
+else:
+    client = None
+    st.error("Hugging Face API key not found. ASR features may be limited.")
+
+# --- NEW: Initialize ElevenLabs Client ---
+if elevenlabs_api_key:
+    elevenlabs_client = ElevenLabs(api_key=elevenlabs_api_key)
+else:
+    elevenlabs_client = None
+    # Display warning only once or if needed
+    st.warning("ElevenLabs API key not found. TTS will fallback or fail.") # Or make this an error if ElevenLabs is mandatory
+
 st.set_page_config(layout="wide")
 
 if 'language' not in st.session_state:
@@ -80,6 +101,8 @@ UI_TEXT = {
         'audio_playback_error': 'Error playing audio response.',
         'processing_error': 'Error processing recorded audio.',
         'upload_process_error': 'Error processing uploaded file.',
+        'tts_error': 'TTS Error:', # Garder générique ou ajouter spécifique
+        'audio_playback_error': 'Error playing audio response.',
     },
     'FR': { # ... contenu FR identique ...
          'title': 'Bienvenue sur, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
@@ -105,6 +128,8 @@ UI_TEXT = {
         'audio_playback_error': 'Erreur lors de la lecture de la réponse audio.',
         'processing_error': 'Erreur lors du traitement de l\'audio enregistré.',
         'upload_process_error': 'Erreur lors du traitement du fichier téléchargé.',
+        'tts_error': 'Erreur TTS:', # Garder générique ou ajouter spécifique
+        'audio_playback_error': 'Erreur lors de la lecture de la réponse audio.',
     }
 }
 
@@ -260,13 +285,59 @@ def transcribe_audio(audio_data, lang='EN'):
     except Exception as e: st.error(f"Error during transcription: {str(e)}"); return None
 
 
-def text_to_speech(text, lang='EN'):
-   # ... code identique ...
+# --- NEW: ElevenLabs Text-to-Speech function ---
+# Define default voice IDs (You can find more on ElevenLabs website)
+# Example IDs: Rachel (EN), Antoni (FR/Multilingual)
+# Find IDs here: https://api.elevenlabs.io/v1/voices
+ELEVENLABS_VOICE_ID_EN = "ErXwobaYiN019PkySvjV" # Rachel
+ELEVENLABS_VOICE_ID_FR = "ErXwobaYiN019PkySvjV" # Antoni (often good for French)
+# You can replace these with other voice IDs you prefer
+
+def text_to_speech_elevenlabs(text, lang='EN'):
+    """Generates audio using ElevenLabs API."""
+    if not elevenlabs_client:
+        st.error("ElevenLabs client not initialized (API key missing?). Cannot generate audio.")
+        return None
+
+    # Nettoyer le texte pour éviter les problèmes avec certains caractères? (Optionnel)
+    # text = re.sub(r'[<>"]', '', text) # Exemple simple
+
+    if not text or text.strip() == "":
+         st.warning("TTS input text is empty.")
+         return None
+
     try:
-        voice = "facebook/mms-tts-fra" if lang == 'FR' else "facebook/mms-tts-eng"
-        audio_bytes = client.text_to_speech(text, model=voice)
+        # Select voice based on language
+        voice_id = ELEVENLABS_VOICE_ID_FR if lang == 'FR' else ELEVENLABS_VOICE_ID_EN
+        # Select model (multilingual v2 is generally good for both)
+        model_id = "eleven_multilingual_v2"
+
+        print(f"DEBUG: Calling ElevenLabs TTS. Voice: {voice_id}, Lang: {lang}, Text: '{text[:50]}...'")
+
+        # Generate audio bytes
+        audio_generator = elevenlabs_client.text_to_speech.convert(
+            voice_id=voice_id,
+            optimize_streaming_latency=0, # Adjust if needed
+            output_format="mp3_44100_128", # Common format, good quality/size
+            text=text,
+            model_id=model_id,
+            # Optional: Add voice settings for stability/similarity if desired
+            # voice_settings=VoiceSettings(
+            #     stability=0.7,
+            #     similarity_boost=0.75
+            # )
+        )
+
+        # Collect audio bytes from the generator
+        audio_bytes = b"".join(audio_generator)
+
+        print(f"DEBUG: ElevenLabs TTS successful. Received {len(audio_bytes)} bytes.")
         return audio_bytes
-    except Exception as e: st.error(f"{UI_TEXT[lang].get('tts_error', 'TTS Error:')} {str(e)}"); return None
+
+    except Exception as e:
+        error_msg = UI_TEXT[lang].get('tts_error', 'TTS Error:')
+        st.error(f"{error_msg} (ElevenLabs): {str(e)}")
+        return None
 
 
 # --- RAG Pipeline (Utilise find_relevant_docs qui utilise le bon index) ---
@@ -360,51 +431,52 @@ with tabs[0]:
     query = st.text_input(UI_TEXT[CURRENT_LANG]["question_placeholder"], key="text_query_input")
     if query:
         with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-            answer = rag_pipeline(query, lang=CURRENT_LANG, k=3) # Passer k=3 aussi ici
+            answer = rag_pipeline(query, lang=CURRENT_LANG, k=3)
         st.markdown('<div class="answer-box">', unsafe_allow_html=True)
         st.write(answer)
         st.markdown('</div>', unsafe_allow_html=True)
+
+        # Use the new TTS function
         if st.button(UI_TEXT[CURRENT_LANG]["listen_button"], key="text_listen_button"):
-            with st.spinner(UI_TEXT[CURRENT_LANG]["generating_audio"]):
-                # Nettoyer un peu la réponse avant TTS? (Optionnel)
-                # Par exemple, enlever les phrases indiquant l'incertitude si vous ne voulez pas les vocaliser.
-                audio_bytes = text_to_speech(answer, lang=CURRENT_LANG)
-                if audio_bytes: st.audio(audio_bytes, format="audio/wav")
-                else: st.error(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+            if not elevenlabs_client:
+                 st.error("ElevenLabs n'est pas configuré (clé API manquante ?)")
+            else:
+                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_audio"]):
+                    audio_bytes = text_to_speech_elevenlabs(answer, lang=CURRENT_LANG)
+                    if audio_bytes:
+                        # Play MP3 audio
+                        st.audio(audio_bytes, format="audio/mp3")
+                    # else: # Error is handled inside the TTS function
+                    #    st.error(UI_TEXT[CURRENT_LANG]['audio_playback_error'] + " (ElevenLabs)")
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# --- Voice Input Tab (gardé identique mais appelle rag_pipeline avec k=3) ---
+# --- Voice Input Tab (MODIFIED to use ElevenLabs TTS) ---
 with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     st.subheader(UI_TEXT[CURRENT_LANG]["voice_subtitle"])
 
     audio_player_container = st.container()
     text_results_container = st.container()
-    # Placeholder pour le message d'information/erreur spécifique à l'audio
-    audio_message_placeholder = st.empty()
+    audio_message_placeholder = st.empty() # Garder pour les messages d'erreur/info
 
     st.markdown(f"<p style='text-align: center;'>{UI_TEXT[CURRENT_LANG]['record_instruction']}</p>", unsafe_allow_html=True)
-    wav_audio_data = st_audiorec() # Peut retourner None ou des bytes
+    wav_audio_data = st_audiorec()
 
-    # Minimum expected size for a valid WAV recording (header + a tiny bit of data)
-    MIN_WAV_BYTES = 100
+    MIN_WAV_BYTES = 100 # Garder pour la validation de l'enregistrement
 
     if wav_audio_data is not None:
-        # Vérifie si les données audio reçues sont potentiellement valides
         is_valid_audio = isinstance(wav_audio_data, bytes) and len(wav_audio_data) > MIN_WAV_BYTES
 
         if is_valid_audio:
-            # L'enregistrement semble valide, on considère que la permission est ok ou déjà donnée
             st.session_state['audio_permission_checked'] = True
-            audio_message_placeholder.empty() # Efface les messages précédents
+            audio_message_placeholder.empty()
 
             transcription = None
             try:
                 with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
                      transcription = transcribe_audio(wav_audio_data, lang=CURRENT_LANG)
             except Exception as e:
-                 # Affiche l'erreur DANS le placeholder dédié
                  audio_message_placeholder.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
                  transcription = None
 
@@ -415,31 +487,34 @@ with tabs[1]:
                 with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
                     answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
 
-                with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+                # Afficher question/réponse texte dans l'expander
+                with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"], expanded=True):
                     st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
                     st.write(transcription)
                     st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
                     st.write(answer)
 
-                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
-                    audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-                    if audio_response:
-                        with audio_player_container:
-                             st.audio(audio_response, format="audio/wav")
-                    else:
-                         # Affiche l'erreur TTS DANS le placeholder dédié
-                         audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+                # Générer l'audio avec ElevenLabs
+                if not elevenlabs_client:
+                    audio_message_placeholder.error("ElevenLabs n'est pas configuré (clé API manquante ?)")
+                else:
+                    with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                        audio_response = text_to_speech_elevenlabs(answer, lang=CURRENT_LANG)
+                        if audio_response:
+                            with audio_player_container:
+                                 # Play MP3 audio
+                                 st.audio(audio_response, format="audio/mp3")
+                        else:
+                            # L'erreur est déjà affichée par la fonction TTS, mais on peut ajouter un warning ici si on veut.
+                            audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'] + " (ElevenLabs TTS failed)")
 
-            # Gère les cas où la transcription a échoué APRES un enregistrement valide
             elif not transcription:
                  audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
             elif not transcription.strip():
                  audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
 
-        else:
-            # L'enregistrement a retourné None ou des données invalides (très courtes)
+        else: # Gestion de l'enregistrement invalide / première permission (Identique)
             if not st.session_state['audio_permission_checked']:
-                # C'est PROBABLEMENT la première tentative après la demande de permission
                 audio_message_placeholder.info(
                     "🎤 Microphone prêt ! Si vous venez d'accorder la permission, "
                     "veuillez **cliquer sur 'Reset' et à nouveau sur 'Start recording'** pour enregistrer votre question."
@@ -447,14 +522,11 @@ with tabs[1]:
                     "🎤 Microphone ready! If you just granted permission, "
                     "please **Click on 'Reset' and again on 'Start Recording'** to record your question."
                 )
-                # On considère que la vérification a eu lieu, même si l'enregistrement a échoué.
-                # La prochaine tentative échouée sera considérée comme un vrai échec.
                 st.session_state['audio_permission_checked'] = True
             else:
-                # Ce n'est pas la première tentative, donc c'est un vrai échec d'enregistrement
                  audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["recording_failed"] + " (No valid audio data received)")
 
-    # --- Upload Option (gardé identique mais appelle rag_pipeline avec k=3) ---
+    # --- Upload Option (MODIFIED to use ElevenLabs TTS) ---
     st.markdown("---")
     uploaded_file = st.file_uploader(
         UI_TEXT[CURRENT_LANG]["upload_audio"],
@@ -468,7 +540,8 @@ with tabs[1]:
             with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
                 transcription = transcribe_audio(uploaded_bytes, lang=CURRENT_LANG)
         except Exception as e:
-            st.error(f"{UI_TEXT[CURRENT_LANG]['upload_process_error']} {e}")
+            # Utiliser le placeholder pour l'erreur
+            audio_message_placeholder.error(f"{UI_TEXT[CURRENT_LANG]['upload_process_error']} {e}")
             transcription = None
 
         if transcription and isinstance(transcription, str) and transcription.strip():
@@ -476,24 +549,31 @@ with tabs[1]:
             with text_results_container: st.empty()
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
+                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
 
-            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"], expanded=True):
                 st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
                 st.write(transcription)
                 st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
                 st.write(answer)
 
-            with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
-                audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-                if audio_response:
-                     with audio_player_container: st.audio(audio_response, format="audio/wav")
-                else:
-                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+            # Générer l'audio avec ElevenLabs
+            if not elevenlabs_client:
+                 audio_message_placeholder.error("ElevenLabs n'est pas configuré (clé API manquante ?)")
+            else:
+                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                    audio_response = text_to_speech_elevenlabs(answer, lang=CURRENT_LANG)
+                    if audio_response:
+                         with audio_player_container:
+                             # Play MP3 audio
+                             st.audio(audio_response, format="audio/mp3")
+                    else:
+                         audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'] + " (ElevenLabs TTS failed)")
+
 
         elif transcription is None:
-            st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
+            audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["upload_error"])
         else:
-            st.warning(UI_TEXT[CURRENT_LANG]["upload_error"] + " (Transcription was empty)")
+            audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["upload_error"] + " (Transcription was empty)")
 
     st.markdown('</div>', unsafe_allow_html=True)
