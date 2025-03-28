@@ -8,3 +8,4 @@ plotly
 pyaudio
 wave
 streamlit-audiorec
+elevenlabs
