@@ -118,9 +118,6 @@ UI_TEXT = {
         'audio_playback_error': 'Error playing audio response.',
         'processing_error': 'Error processing recorded audio.',
         'upload_process_error': 'Error processing uploaded file.',
-        # Prompts below might not be directly applicable to st_audiorec, it has its own UI
-        # 'start_recording': 'Start recording',
-        # 'stop_recording': 'Stop recording',
     },
     'FR': {
         'title': 'Bienvenue sur, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
@@ -146,9 +143,6 @@ UI_TEXT = {
         'audio_playback_error': 'Erreur lors de la lecture de la réponse audio.',
         'processing_error': 'Erreur lors du traitement de l\'audio enregistré.',
         'upload_process_error': 'Erreur lors du traitement du fichier téléchargé.',
-        # Prompts below might not be directly applicable to st_audiorec
-        # 'start_recording': 'Démarrer l\'enregistrement',
-        # 'stop_recording': 'Arrêter l\'enregistrement',
     }
 }
 
@@ -212,10 +206,10 @@ def build_faiss_index(_documents):
 documents = documents_fr if CURRENT_LANG == 'FR' else documents_en
 index, current_documents = build_faiss_index(documents)
 
-def find_relevant_docs(query, k=2): # Kept the same
+def find_relevant_docs(query, k=3): # Kept the same
     query_embedding = embedding_model.encode([query])
     distances, indices = index.search(query_embedding, k)
-    threshold = 1.81
+    threshold = 1.41
     if distances.size == 0 or distances[0][0] > threshold:
         return [], []
     return [current_documents[idx] for idx in indices[0] if idx < len(current_documents)], distances[0]
@@ -225,7 +219,7 @@ def mistral_via_api(prompt, lang='EN'):
     API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
     if hf_token is None: return "Error: No tokens found."
     headers = {"Authorization": f"Bearer {hf_token}"}
-    payload = {"inputs": prompt, "parameters": {"max_new_tokens": 300, "temperature": 0.5, "top_k": 10, "return_full_text": False}}
+    payload = {"inputs": prompt, "parameters": {"max_new_tokens": 300, "temperature": 0.1, "top_k": 10, "return_full_text": False}}
     try:
         response = requests.post(API_URL, headers=headers, json=payload)
         response.raise_for_status()
@@ -247,13 +241,13 @@ def mistral_via_api(prompt, lang='EN'):
 # RAG Pipeline (Kept the same, including prompt adjustments and cleaning)
 def rag_pipeline(query, k=2, lang='EN'):
     relevant_docs, distances = find_relevant_docs(query, k)
-    no_info_msg = UI_TEXT[lang].get('response_no_info', ("Je suis désolé..." if lang == 'FR' else "I'm sorry..."))
+    no_info_msg = UI_TEXT[lang].get('response_no_info', ("Je suis désolé je ne suis pas en capacité de repondre à cette question..." if lang == 'FR' else "I'm sorry I'm not able to answer this question..."))
     if not relevant_docs: return no_info_msg
     context = "\n".join(relevant_docs)
     if lang == 'FR':
-        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne... Si le contexte ne permet pas de répondre, dis que tu ne sais pas...\n\nRéponse:"""
+        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne en te basant uniquement sur le context... Si le contexte ne permet pas de répondre, dis que tu ne sais pas...\n\nRéponse:"""
     else:
-        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in first person... If the context doesn't provide the answer, say you don't know...\n\nAnswer:"""
+        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in first person Based only on the context... If the context doesn't provide the answer, say you don't know...\n\nAnswer:"""
     response_text = mistral_via_api(prompt, lang)
     if response_text is None: return UI_TEXT[lang].get('response_generation_error', "Sorry, error generating response.")
     answer = response_text.strip()
@@ -328,7 +322,6 @@ with tabs[1]:
     # Process recorded audio if data is received
     # wav_audio_data contains the audio data in WAV format bytes
     if wav_audio_data is not None:
-        st.info(UI_TEXT[CURRENT_LANG]["processing"])
         transcription = None
         try:
             # Pass the WAV bytes directly to the transcription function
@@ -376,7 +369,6 @@ with tabs[1]:
         key="audio_uploader"
     )
     if uploaded_file is not None:
-        st.info(UI_TEXT[CURRENT_LANG]["processing_upload"])
         transcription = None
         try:
             uploaded_bytes = uploaded_file.getvalue()
