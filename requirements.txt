@@ -7,7 +7,6 @@ numpy
 plotly
 pyaudio
 wave
-streamlit-audiorec
 elevenlabs
 streamlit-audiorecorder
 pydub
