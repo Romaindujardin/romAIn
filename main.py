@@ -10,11 +10,13 @@ import numpy as np
 from io import BytesIO
 import base64
 import plotly.graph_objects as go
-import wave
+# import wave # Plus forcément nécessaire directement
 import tempfile
-from st_audiorec import st_audiorec
+# from st_audiorec import st_audiorec # ### MODIFIÉ ### Ancienne dépendance
+from audiorecorder import audiorecorder # ### NOUVEAU ### Nouvelle dépendance
+from pydub import AudioSegment # ### NOUVEAU ### Nécessaire pour manipuler la sortie d'audiorecorder
 
-# --- Configuration (gardée identique) ---
+# --- Configuration ---
 hf_token = st.secrets["huggingface"]["token"]
 client = InferenceClient(api_key=hf_token)
 st.set_page_config(layout="wide")
@@ -26,17 +28,26 @@ if 'language' not in st.session_state:
 if 'audio_permission_checked' not in st.session_state:
     st.session_state['audio_permission_checked'] = False
 
-# --- Styling (gardé identique) ---
+# --- Styling ---
 st.markdown(
     """
     <style>
     /* ... styles identiques ... */
+    /* Styles spécifiques pour audiorecorder si nécessaire */
+    .stAudioRecorder {
+        /* Exemple: centrer le bouton/visualiseur */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem 0;
+    }
+    /* Vous pouvez essayer d'ajouter des styles ici, mais la portée peut être limitée */
     </style>
     """,
     unsafe_allow_html=True
 )
 
-# --- Language selection (gardée identique) ---
+# --- Language selection ---
 col1, col2, col3 = st.columns([1, 4, 1])
 with col1:
     lang_options = ["🇫🇷 FR", "🇬🇧 EN"]
@@ -54,9 +65,9 @@ with col1:
 
 CURRENT_LANG = st.session_state['language']
 
-# --- UI Text Definitions (gardées identiques) ---
+# --- UI Text Definitions ---
 UI_TEXT = {
-    'EN': { # ... contenu EN identique ...
+    'EN': {
         'title': 'Welcome to, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
         'subtitle': 'here is <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, an AI in the image of Romain Dujardin. Ask questions in English and he will answer them as best he can.',
         'text_tab': 'Text Input',
@@ -66,7 +77,8 @@ UI_TEXT = {
         'listen_button': 'Listen to the answer',
         'generating_audio': 'Generating audio...',
         'voice_subtitle': 'Ask your question by voice',
-        'record_instruction': 'Use the recorder below to ask your question (Start Recording to throw and stop to stop) :', # Updated instruction slightly
+        # ### MODIFIÉ ### Adapter les instructions si besoin pour le nouveau composant
+        'record_instruction': 'Click the icon below to start/stop recording and on the disk to send:',
         'processing': 'Processing audio...',
         'generating_voice': 'Generating voice response...',
         'show_details': 'Show text details',
@@ -80,8 +92,10 @@ UI_TEXT = {
         'audio_playback_error': 'Error playing audio response.',
         'processing_error': 'Error processing recorded audio.',
         'upload_process_error': 'Error processing uploaded file.',
+        # Ajout potentiel pour le nouveau composant
+        'recorder_visualizer_text': 'Recording...', # Texte affiché si show_visualizer=False avec visualizer activé
     },
-    'FR': { # ... contenu FR identique ...
+    'FR': {
          'title': 'Bienvenue sur, <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>',
         'subtitle': 'voici <span style="opacity: 0.5;">rom</span>A</span>I<span style="opacity: 0.5;">n</span>, une IA à l\'image de Romain Dujardin. Posez des questions en français et il y répondra du mieux qu\'il peut.',
         'text_tab': 'Saisie de texte',
@@ -91,7 +105,8 @@ UI_TEXT = {
         'listen_button': 'Écouter la réponse',
         'generating_audio': 'Génération de l\'audio...',
         'voice_subtitle': 'Posez votre question par la voix',
-        'record_instruction': 'Utilisez l\'enregistreur ci-dessous pour poser votre question (Start recording pour lancer et Stop pour arrêter) :', # Updated instruction slightly
+        # ### MODIFIÉ ### Adapter les instructions si besoin pour le nouveau composant
+        'record_instruction': 'Cliquez sur l\'icône ci-dessous pour démarrer/arrêter l\'enregistrement et sur la disquette pour l\'envoyer :',
         'processing': 'Traitement de l\'audio...',
         'generating_voice': 'Génération de la réponse vocale...',
         'show_details': 'Afficher les détails du texte',
@@ -105,19 +120,20 @@ UI_TEXT = {
         'audio_playback_error': 'Erreur lors de la lecture de la réponse audio.',
         'processing_error': 'Erreur lors du traitement de l\'audio enregistré.',
         'upload_process_error': 'Erreur lors du traitement du fichier téléchargé.',
+        # Ajout potentiel pour le nouveau composant
+        'recorder_visualizer_text': 'Enregistrement...', # Texte affiché si show_visualizer=False avec visualizer activé
     }
 }
 
-# --- Model Loading (gardé identique) ---
+# --- Model Loading ---
 @st.cache_resource
 def load_embedding_model():
-    print("DEBUG: Loading embedding model...") # Pour voir quand ça charge
-    # return SentenceTransformer('sentence-transformers/all-mpnet-base-v2')
+    print("DEBUG: Loading embedding model...")
     return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
 
 embedding_model = load_embedding_model()
 
-# --- Document Definitions (gardées identiques) ---
+# --- Document Definitions ---
 documents_en = [ # ... contenu EN identique ...
     "My name is Romain Dujardin", "I'm 22 years old", "I'm a French student in AI engineering",
     "I currently study at Isen JUNIA in Lille since 2021 (school), During my studies, I have learned about machine learning, deep learning, computer vision, natural language processing, reinforcement learning. I had lessons in mathematics, statistics, computer science, physics, electronics and project management",
@@ -137,7 +153,7 @@ documents_en = [ # ... contenu EN identique ...
     "If I had to cite a default it would be that I like to do everything, what I mean by that is that when I work on a new project I am enthusiastic and want to do everything and touch everything on it.",
     "My favorite movie is Lucy."
 ]
-documents_fr = [ # ... contenu FR identique, MAIS AVEC LA CORRECTION SUGGÉRÉE
+documents_fr = [ # ... contenu FR identique ...
     "Je m'appelle Romain Dujardin",
     "J'ai 22 ans", # <-- MODIFIÉ ICI pour une phrase plus naturelle
     "Je suis un étudiant français en école d'ingénieur dans l'IA",
@@ -147,7 +163,7 @@ documents_fr = [ # ... contenu FR identique, MAIS AVEC LA CORRECTION SUGGÉRÉE
     "Concernant mes projets, j'ai notamment travaillé sur le Projet F.R.A.N.K qui est un projet 3D mélangeant l'IA sur unity3D, c'est un jeu d'horreur dans un univers réaliste, avec des fonctions de gameplay avancées comme la gestion d'inventaire et l'utilisation d'objets, tout en étant poursuivi par un monstre sous IA. Et j'ai aussi travaillé sur un projet de drive local sur django nommé DriveMe. Tous ces projets sont disponibles sur mon github",
     "Durant ces différents projets j'ai d'abord appris à gérer une équipe en tant que chef de projet et donc en même temps à travailler en équipe, j'ai également mis en pratique ce que je vois en cours dans des exemples concrets. En plus, j'ai pu traiter la résolution de problèmes sur certains projets",
     "Je recherche une alternance en IA pour septembre 2025", "J'ai besoin d'un contrat pour valider mon diplôme",
-    "Mon email est dujardin.romain@icloud.com et mon numéro de téléphone est le 07 83 19 30 23",
+    "voici mon email : dujardin.romain@icloud.com et mon numéro de téléphone est le 07 83 19 30 23",
     "J'ai eu des expériences professionnelles en tant que chauffeur pharmaceutique, comptable, opérateur de machine ou commis de food truck",
     "J'ai le permis de conduire et mon véhicule personnel", "J'ai obtenu le baccalauréat sti2d avec mention quand j'étais au lycée",
     "Je code en python, C, CPP, django, JavaScript et react. Je maîtrise des outils comme rag, hyde, pytorsh",
@@ -161,10 +177,10 @@ documents_fr = [ # ... contenu FR identique, MAIS AVEC LA CORRECTION SUGGÉRÉE
 ]
 
 
-# --- MODIFIED: Separate FAISS Index Building Functions ---
+# --- FAISS Index Building ---
 @st.cache_resource(show_spinner=False)
 def build_faiss_index_en():
-    print("DEBUG: Building and caching EN FAISS index...") # Debug
+    print("DEBUG: Building and caching EN FAISS index...")
     docs = documents_en
     doc_embeddings = embedding_model.encode(docs)
     dimension = doc_embeddings.shape[1]
@@ -174,7 +190,7 @@ def build_faiss_index_en():
 
 @st.cache_resource(show_spinner=False)
 def build_faiss_index_fr():
-    print("DEBUG: Building and caching FR FAISS index...") # Debug
+    print("DEBUG: Building and caching FR FAISS index...")
     docs = documents_fr
     doc_embeddings = embedding_model.encode(docs)
     dimension = doc_embeddings.shape[1]
@@ -182,26 +198,24 @@ def build_faiss_index_fr():
     index.add(doc_embeddings)
     return index, docs
 
-# --- Select the correct index AFTER determining CURRENT_LANG ---
+# --- Select the correct index ---
 if CURRENT_LANG == 'FR':
     index, current_documents = build_faiss_index_fr()
-    print("DEBUG: Using FR index.") # Debug
+    print("DEBUG: Using FR index.")
 else:
     index, current_documents = build_faiss_index_en()
-    print("DEBUG: Using EN index.") # Debug
+    print("DEBUG: Using EN index.")
 
 
-# --- find_relevant_docs (Utilise l'index et les documents sélectionnés ci-dessus) ---
-def find_relevant_docs(query, k=2): # Augmenté k à 3 pour tester
+# --- find_relevant_docs ---
+def find_relevant_docs(query, k=3): # ### Augmenté k à 3 ###
     query_embedding = embedding_model.encode([query])
-    # Utilise les variables 'index' et 'current_documents' qui ont été définies
-    # en fonction de CURRENT_LANG juste avant cet appel.
     distances, indices = index.search(query_embedding, k)
 
-    print(f"DEBUG Query: {query}") # Debug
-    print(f"DEBUG Found indices: {indices[0]}, Distances: {distances[0]}") # Debug
+    print(f"DEBUG Query: {query}")
+    print(f"DEBUG Found indices: {indices[0]}, Distances: {distances[0]}")
 
-    threshold = 15 # Vous pouvez ajuster ce seuil si nécessaire
+    threshold = 15 # Ajustez si nécessaire
     relevant_docs = []
     relevant_distances = []
 
@@ -210,22 +224,17 @@ def find_relevant_docs(query, k=2): # Augmenté k à 3 pour tester
             if idx < len(current_documents) and distances[0][i] <= threshold:
                 relevant_docs.append(current_documents[idx])
                 relevant_distances.append(distances[0][i])
-            # else: # Optionnel: voir les docs filtrés par le seuil
-            #     if idx < len(current_documents):
-            #         print(f"DEBUG: Doc '{current_documents[idx][:50]}...' filtered by threshold (dist={distances[0][i]})")
-            #     else:
-            #          print(f"DEBUG: Index {idx} out of bounds")
 
-    print(f"DEBUG Retrieved docs AFTER threshold: {relevant_docs}") # Debug
-    print(f"DEBUG Retrieved distances AFTER threshold: {relevant_distances}") # Debug
+    print(f"DEBUG Retrieved docs AFTER threshold: {relevant_docs}")
+    print(f"DEBUG Retrieved distances AFTER threshold: {relevant_distances}")
 
     if not relevant_docs:
         return [], []
-    return relevant_docs, relevant_distances # Retourne aussi les distances filtrées
+    return relevant_docs, relevant_distances
 
-# --- Fonctions API (Mistral, Transcribe, TTS - gardées identiques) ---
+
+# --- Fonctions API (Mistral, Transcribe, TTS) ---
 def mistral_via_api(prompt, lang='EN'):
-    # ... code identique ...
     API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
     if hf_token is None: return "Error: No tokens found."
     headers = {"Authorization": f"Bearer {hf_token}"}
@@ -248,9 +257,8 @@ def mistral_via_api(prompt, lang='EN'):
         st.error(f"{error_msg}{e}")
         return None
 
-
 def transcribe_audio(audio_data, lang='EN'):
-    # ... code identique ...
+    # Cette fonction attend des bytes en entrée
     try:
         model = "openai/whisper-large-v3"
         transcription_response = client.automatic_speech_recognition(audio=audio_data, model=model)
@@ -259,21 +267,17 @@ def transcribe_audio(audio_data, lang='EN'):
         else: st.error(f"Unexpected transcription response format: {transcription_response}"); return None
     except Exception as e: st.error(f"Error during transcription: {str(e)}"); return None
 
-
 def text_to_speech(text, lang='EN'):
-   # ... code identique ...
     try:
         voice = "facebook/mms-tts-fra" if lang == 'FR' else "facebook/mms-tts-eng"
         audio_bytes = client.text_to_speech(text, model=voice)
         return audio_bytes
     except Exception as e: st.error(f"{UI_TEXT[lang].get('tts_error', 'TTS Error:')} {str(e)}"); return None
 
+# --- RAG Pipeline ---
+def rag_pipeline(query, k=3, lang='EN'):
+    relevant_docs, distances = find_relevant_docs(query, k=k)
 
-# --- RAG Pipeline (Utilise find_relevant_docs qui utilise le bon index) ---
-def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
-    relevant_docs, distances = find_relevant_docs(query, k=k) # Passe k
-
-    # --- Ajout de Debugging ici aussi ---
     print("-" * 20)
     print(f"RAG Pipeline Input Query: {query}")
     print(f"RAG Found Relevant Docs (k={k}, after threshold):")
@@ -283,11 +287,10 @@ def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
     else:
         print("  - No relevant documents found after threshold.")
     print("-" * 20)
-    # --- Fin Debugging ---
 
     no_info_msg = UI_TEXT[lang].get('response_no_info', ("Je suis désolé, je ne peux pas repondre à cette question..." if lang == 'FR' else "I'm sorry, I cannot answer this question..."))
     if not relevant_docs:
-        print("RAG Pipeline: No relevant docs found, returning no_info_msg") # Debug
+        print("RAG Pipeline: No relevant docs found, returning no_info_msg")
         return no_info_msg
 
     context = "\n".join(relevant_docs)
@@ -297,52 +300,47 @@ def rag_pipeline(query, k=3, lang='EN'): # J'ai aussi mis k=3 par défaut ici
     else:
         prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in the first person using only information from the provided context... If the context doesn't provide the answer, state that clearly (e.g., 'I don't have the information to answer that.'). Do not invent anything.\n\nAnswer:"""
 
-    print(f"RAG Pipeline: Prompt sent to Mistral:\n{prompt}\n") # Debug
+    print(f"RAG Pipeline: Prompt sent to Mistral:\n{prompt}\n")
 
     response_text = mistral_via_api(prompt, lang)
 
     if response_text is None:
-        print("RAG Pipeline: Mistral API returned None.") # Debug
+        print("RAG Pipeline: Mistral API returned None.")
         return UI_TEXT[lang].get('response_generation_error', "Sorry, error generating response.")
 
     answer = response_text.strip()
-    print(f"RAG Pipeline: Raw response from Mistral: '{answer}'") # Debug
+    print(f"RAG Pipeline: Raw response from Mistral: '{answer}'")
 
-    # --- Cleaning (gardé identique mais avec plus de logging) ---
+    # --- Cleaning ---
     if lang == 'FR':
         unwanted = ["En tant que Romain Dujardin,", "En tant que Romain, ", "Basé sur le contexte,", "Selon le contexte,", "D'après le contexte,", "Réponse:", "..."]
-        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Romain") # Attention avec replace Romain -> Je
+        answer = answer.replace("Romain est", "Je suis").replace("Romain a", "J'ai").replace("Romain", "Romain")
         answer = answer.replace("il est", "je suis").replace("il a", "j'ai")
     else:
         unwanted = ["As Romain Dujardin,", "As Romain, ", "Based on the context,", "According to the context,", "Answer:", "..."]
-        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "Romain") # Attention avec replace Romain -> I
+        answer = answer.replace("Romain's", "my").replace("Romain is", "I am").replace("Romain has", "I have").replace("Romain", "Romain")
         answer = answer.replace("he is", "I am").replace("he has", "I have")
 
     cleaned_answer = answer
     for phrase in unwanted:
         cleaned_answer = re.sub(rf'^\s*{re.escape(phrase)}\s*', '', cleaned_answer, flags=re.IGNORECASE)
 
-    print(f"RAG Pipeline: Cleaned answer: '{cleaned_answer}'") # Debug
+    print(f"RAG Pipeline: Cleaned answer: '{cleaned_answer}'")
 
-    # Vérifie si la réponse est vide ou non informative après nettoyage
     if not cleaned_answer or cleaned_answer.lower().strip() in ["answer:", "réponse:", ".", ""]:
-        print("RAG Pipeline: Answer became empty/uninformative after cleaning, returning no_info_msg") # Debug
+        print("RAG Pipeline: Answer became empty/uninformative after cleaning, returning no_info_msg")
         return no_info_msg
 
-    # Vérification supplémentaire si le LLM dit qu'il ne sait pas
     no_answer_indicators_fr = ["je ne sais pas", "je n'ai pas l'information", "contexte ne fournit pas", "pas mentionné"]
     no_answer_indicators_en = ["i don't know", "i do not know", "context does not provide", "not mentioned", "don't have the information"]
     indicators = no_answer_indicators_fr if lang == 'FR' else no_answer_indicators_en
     if any(indicator in cleaned_answer.lower() for indicator in indicators):
-         print(f"RAG Pipeline: LLM indicated it couldn't answer. Returning: '{cleaned_answer}'") # Debug - Peut-être retourner no_info_msg ici ? Ou garder la réponse du LLM ?
-         # return no_info_msg # Décommentez si vous préférez le message standardisé
-         pass # Garde la réponse du LLM disant qu'il ne sait pas
-
+         print(f"RAG Pipeline: LLM indicated it couldn't answer. Returning: '{cleaned_answer}'")
+         # pass # Keep the LLM's answer indicating it doesn't know
 
     return cleaned_answer
 
-
-# --- Main App Layout (gardé identique) ---
+# --- Main App Layout ---
 st.markdown(
     f'<div style="text-align: center;">'
     f'<h1 class="centered h1">{UI_TEXT[CURRENT_LANG]["title"]}</h1>'
@@ -354,131 +352,66 @@ st.markdown(
 tab_titles = [UI_TEXT[CURRENT_LANG]["text_tab"], UI_TEXT[CURRENT_LANG]["voice_tab"]]
 tabs = st.tabs(tab_titles)
 
-# --- Text Input Tab (gardé identique) ---
+# --- Text Input Tab ---
 with tabs[0]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     query = st.text_input(UI_TEXT[CURRENT_LANG]["question_placeholder"], key="text_query_input")
     if query:
         with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-            answer = rag_pipeline(query, lang=CURRENT_LANG, k=3) # Passer k=3 aussi ici
+            answer = rag_pipeline(query, lang=CURRENT_LANG, k=3)
         st.markdown('<div class="answer-box">', unsafe_allow_html=True)
         st.write(answer)
         st.markdown('</div>', unsafe_allow_html=True)
         if st.button(UI_TEXT[CURRENT_LANG]["listen_button"], key="text_listen_button"):
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_audio"]):
-                # Nettoyer un peu la réponse avant TTS? (Optionnel)
-                # Par exemple, enlever les phrases indiquant l'incertitude si vous ne voulez pas les vocaliser.
                 audio_bytes = text_to_speech(answer, lang=CURRENT_LANG)
                 if audio_bytes: st.audio(audio_bytes, format="audio/wav")
                 else: st.error(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
     st.markdown('</div>', unsafe_allow_html=True)
 
 
-# --- Voice Input Tab (gardé identique mais appelle rag_pipeline avec k=3) ---
+# --- Voice Input Tab ---
 with tabs[1]:
     st.markdown('<div class="tab-container">', unsafe_allow_html=True)
     st.subheader(UI_TEXT[CURRENT_LANG]["voice_subtitle"])
 
     audio_player_container = st.container()
     text_results_container = st.container()
-    # Placeholder pour le message d'information/erreur spécifique à l'audio
-    audio_message_placeholder = st.empty()
+    audio_message_placeholder = st.empty() # Placeholder for messages
 
     st.markdown(f"<p style='text-align: center;'>{UI_TEXT[CURRENT_LANG]['record_instruction']}</p>", unsafe_allow_html=True)
-    wav_audio_data = st_audiorec() # Peut retourner None ou des bytes
 
-    # Minimum expected size for a valid WAV recording (header + a tiny bit of data)
-    MIN_WAV_BYTES = 100
+    # ### NOUVEAU ### Utilisation de audiorecorder avec le mode visualiseur (pas de texte pour les boutons)
+    # Vous pouvez aussi mettre du texte: audiorecorder("Démarrer", "Arrêter")
+    # show_visualizer=True est la valeur par défaut quand les prompts sont vides.
+    # Mettre show_visualizer=False afficherait le texte 'Recording...'
+    recorded_audio_segment = audiorecorder("", "", key="audio_recorder_main")
 
-    if wav_audio_data is not None:
-        # Vérifie si les données audio reçues sont potentiellement valides
-        is_valid_audio = isinstance(wav_audio_data, bytes) and len(wav_audio_data) > MIN_WAV_BYTES
+    # ### MODIFIÉ ### Logique pour traiter la sortie de audiorecorder (AudioSegment)
+    if recorded_audio_segment and len(recorded_audio_segment) > 0:
+        # L'enregistrement a produit un segment audio non vide
+        st.session_state['audio_permission_checked'] = True
+        audio_message_placeholder.empty() # Efface les messages précédents
 
-        if is_valid_audio:
-            # L'enregistrement semble valide, on considère que la permission est ok ou déjà donnée
-            st.session_state['audio_permission_checked'] = True
-            audio_message_placeholder.empty() # Efface les messages précédents
-
-            transcription = None
-            try:
-                with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
-                     transcription = transcribe_audio(wav_audio_data, lang=CURRENT_LANG)
-            except Exception as e:
-                 # Affiche l'erreur DANS le placeholder dédié
-                 audio_message_placeholder.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
-                 transcription = None
-
-            if transcription and isinstance(transcription, str) and transcription.strip():
-                audio_player_container.empty()
-                with text_results_container: st.empty()
-
-                with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                    answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
-
-                with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
-                    st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
-                    st.write(transcription)
-                    st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
-                    st.write(answer)
-
-                with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
-                    audio_response = text_to_speech(answer, lang=CURRENT_LANG)
-                    if audio_response:
-                        with audio_player_container:
-                             st.audio(audio_response, format="audio/wav")
-                    else:
-                         # Affiche l'erreur TTS DANS le placeholder dédié
-                         audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
-
-            # Gère les cas où la transcription a échoué APRES un enregistrement valide
-            elif not transcription:
-                 audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
-            elif not transcription.strip():
-                 audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
-
-        else:
-            # L'enregistrement a retourné None ou des données invalides (très courtes)
-            if not st.session_state['audio_permission_checked']:
-                # C'est PROBABLEMENT la première tentative après la demande de permission
-                audio_message_placeholder.info(
-                    "🎤 Microphone prêt ! Si vous venez d'accorder la permission, "
-                    "veuillez **cliquer sur 'Reset' et à nouveau sur 'Start recording'** pour enregistrer votre question."
-                    if CURRENT_LANG == 'FR' else
-                    "🎤 Microphone ready! If you just granted permission, "
-                    "please **Click on 'Reset' and again on 'Start Recording'** to record your question."
-                )
-                # On considère que la vérification a eu lieu, même si l'enregistrement a échoué.
-                # La prochaine tentative échouée sera considérée comme un vrai échec.
-                st.session_state['audio_permission_checked'] = True
-            else:
-                # Ce n'est pas la première tentative, donc c'est un vrai échec d'enregistrement
-                 audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["recording_failed"] + " (No valid audio data received)")
-
-    # --- Upload Option (gardé identique mais appelle rag_pipeline avec k=3) ---
-    st.markdown("---")
-    uploaded_file = st.file_uploader(
-        UI_TEXT[CURRENT_LANG]["upload_audio"],
-        type=["mp3", "wav", "m4a", "ogg", "flac"],
-        key="audio_uploader"
-    )
-    if uploaded_file is not None:
         transcription = None
         try:
-            uploaded_bytes = uploaded_file.getvalue()
             with st.spinner(UI_TEXT[CURRENT_LANG]["processing"]):
-                transcription = transcribe_audio(uploaded_bytes, lang=CURRENT_LANG)
+                # ### MODIFIÉ ### Exporter l'AudioSegment en bytes (format WAV recommandé)
+                audio_bytes_to_transcribe = recorded_audio_segment.export(format="wav").read()
+                transcription = transcribe_audio(audio_bytes_to_transcribe, lang=CURRENT_LANG)
         except Exception as e:
-            st.error(f"{UI_TEXT[CURRENT_LANG]['upload_process_error']} {e}")
-            transcription = None
+             audio_message_placeholder.error(f"{UI_TEXT[CURRENT_LANG]['processing_error']} {e}")
+             transcription = None
 
         if transcription and isinstance(transcription, str) and transcription.strip():
+            # Vider les anciens résultats si une nouvelle transcription est réussie
             audio_player_container.empty()
-            with text_results_container: st.empty()
+            with text_results_container: st.empty() # Assure que l'expander est recréé
 
             with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
-                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3) # Passer k=3
+                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
 
-            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"]):
+            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"], expanded=False): # Ouvre l'expander par défaut
                 st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
                 st.write(transcription)
                 st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
@@ -487,13 +420,82 @@ with tabs[1]:
             with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
                 audio_response = text_to_speech(answer, lang=CURRENT_LANG)
                 if audio_response:
-                     with audio_player_container: st.audio(audio_response, format="audio/wav")
+                    with audio_player_container:
+                         st.markdown(f"**{UI_TEXT[CURRENT_LANG]['listen_button']}**") # Ajout titre pour clarté
+                         st.audio(audio_response, format="audio/wav")
                 else:
-                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+                     audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error'])
+
+        # Gère les cas où la transcription a échoué APRES un enregistrement valide
+        elif not transcription:
+             audio_message_placeholder.error(UI_TEXT[CURRENT_LANG]["no_transcription"])
+        elif not transcription.strip():
+             audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["no_transcription"] + " (Transcription was empty)")
+
+    # ### MODIFIÉ ### Gérer le cas où l'enregistrement a échoué ou est vide
+    # recorded_audio_segment sera None ou un AudioSegment de longueur 0
+    elif recorded_audio_segment is not None: # Si le composant a retourné quelque chose (même vide)
+        if not st.session_state['audio_permission_checked']:
+            # Probablement la première interaction après demande de permission
+            audio_message_placeholder.info(
+                "🎤 Accordez l'accès au Microphone ! Cliquez une premiere fois pour donner l'accès et une seconde fois pour commencer l'enregistrement"
+                if CURRENT_LANG == 'FR' else
+                "🎤 Give access to the microphone! Click a first time to give access and a second time to start recording"
+            )
+            st.session_state['audio_permission_checked'] = True
+        else:
+            # Ce n'est pas la première tentative OU l'utilisateur a arrêté très vite
+            # On ne peut pas distinguer facilement un vrai échec d'un arrêt immédiat.
+            # On peut juste indiquer que l'audio reçu est vide.
+            # audio_message_placeholder.warning(UI_TEXT[CURRENT_LANG]["recording_failed"] + " (Audio data is empty)")
+            # Optionnellement: ne rien afficher si l'audio est juste vide (l'utilisateur a peut-être annulé)
+            pass # Ne rien afficher explicitement pour un enregistrement vide après la première tentative
+
+    # --- Upload Option (inchangé mais utilise k=3 dans rag_pipeline) ---
+    st.markdown("---")
+    uploaded_file = st.file_uploader(
+        UI_TEXT[CURRENT_LANG]["upload_audio"],
+        type=["mp3", "wav", "m4a", "ogg", "flac"],
+        key="audio_uploader"
+    )
+    if uploaded_file is not None:
+        # Vider les résultats précédents (enregistrement ou upload)
+        audio_player_container.empty()
+        with text_results_container: st.empty()
+        audio_message_placeholder.empty()
+
+        transcription = None
+        try:
+            uploaded_bytes = uploaded_file.getvalue()
+            with st.spinner(UI_TEXT[CURRENT_LANG]["processing_upload"]): # Message différent
+                transcription = transcribe_audio(uploaded_bytes, lang=CURRENT_LANG)
+        except Exception as e:
+            st.error(f"{UI_TEXT[CURRENT_LANG]['upload_process_error']} {e}")
+            transcription = None
+
+        if transcription and isinstance(transcription, str) and transcription.strip():
+            with st.spinner(UI_TEXT[CURRENT_LANG]["thinking"]):
+                answer = rag_pipeline(transcription, lang=CURRENT_LANG, k=3)
+
+            with text_results_container.expander(UI_TEXT[CURRENT_LANG]["show_details"], expanded=True):
+                st.write(f"**{UI_TEXT[CURRENT_LANG]['your_question']}**")
+                st.write(transcription)
+                st.write(f"**{UI_TEXT[CURRENT_LANG]['response']}**")
+                st.write(answer)
+
+            with st.spinner(UI_TEXT[CURRENT_LANG]["generating_voice"]):
+                audio_response = text_to_speech(answer, lang=CURRENT_LANG)
+                if audio_response:
+                     with audio_player_container:
+                         st.markdown(f"**{UI_TEXT[CURRENT_LANG]['listen_button']}**")
+                         st.audio(audio_response, format="audio/wav")
+                else:
+                     st.warning(UI_TEXT[CURRENT_LANG]['audio_playback_error']) # Afficher l'erreur dans le main container ici
 
         elif transcription is None:
-            st.error(UI_TEXT[CURRENT_LANG]["upload_error"])
+            st.error(UI_TEXT[CURRENT_LANG]["upload_error"]) # Afficher l'erreur dans le main container ici
         else:
-            st.warning(UI_TEXT[CURRENT_LANG]["upload_error"] + " (Transcription was empty)")
+            st.warning(UI_TEXT[CURRENT_LANG]["upload_error"] + " (Transcription was empty)") # Afficher l'erreur ici
 
     st.markdown('</div>', unsafe_allow_html=True)
+
