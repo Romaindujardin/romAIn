@@ -11,3 +11,4 @@ streamlit-audiorec
 elevenlabs
 streamlit-audiorecorder
 pydub
+ffmpeg
