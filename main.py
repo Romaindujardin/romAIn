@@ -129,8 +129,7 @@ UI_TEXT = {
 @st.cache_resource
 def load_embedding_model():
     print("DEBUG: Loading embedding model...")
-    # return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
-    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2') # Test avec un modèle plus petit
+    return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
 
 embedding_model = load_embedding_model()
 
@@ -499,4 +498,3 @@ with tabs[1]:
             st.warning(UI_TEXT[CURRENT_LANG]["upload_error"] + " (Transcription was empty)") # Afficher l'erreur ici
 
     st.markdown('</div>', unsafe_allow_html=True)
-
