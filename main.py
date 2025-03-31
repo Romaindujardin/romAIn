@@ -129,7 +129,8 @@ UI_TEXT = {
 @st.cache_resource
 def load_embedding_model():
     print("DEBUG: Loading embedding model...")
-    return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
+    # return SentenceTransformer('sentence-transformers/paraphrase-multilingual-mpnet-base-v2')
+    return SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2') # Test avec un modèle plus petit
 
 embedding_model = load_embedding_model()
 
