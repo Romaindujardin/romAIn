@@ -8,7 +8,8 @@ My personal chatbot trained to answer professional questions in English for me.
 or Direct link : https://romain.streamlit.app
 
 ## Explanation
-<img width="2607" alt="Architecture" src="https://github.com/user-attachments/assets/0d751d8c-e2d8-464d-9764-5b4bbc35c260" />
+![image](https://github.com/user-attachments/assets/3108ab0d-acb9-443b-9520-78b69aea7037)
+
 
 ### Data 
 So for the data, first, I list the data about me in the form of a sentence like “my name is romain”, I split these sentences into several sub-sentences so that I don't have just one long one, but several short ones for a more appropriate context.
