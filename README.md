@@ -49,12 +49,12 @@ No matter the input method (typed text or transcribed speech), the result at thi
 
 ### 4. Generating the Answer (LLM Interaction)
 
-Prompt Construction: A prompt is carefully constructed to be sent to the Large Language Model (LLM). This prompt typically includes:
-The retrieved relevant documents (the top 3 sentences identified in the previous step).
-The user's original question (as text).
-Custom instructions guiding the LLM on how to answer (e.g., "You are Romain Dujardin. Answer in the first person using only the provided context. Answer in [French/English].").
-LLM Call: This complete prompt is sent to the LLM (e.g., Mistral-7B-Instruct-v0.2) via the Hugging Face API.
-Receiving the Response: The LLM generates a text-based answer based on the provided context and instructions.
+- Prompt Construction: A prompt is carefully constructed to be sent to the Large Language Model (LLM). This prompt typically includes:
+  - The retrieved relevant documents (the top 3 sentences identified in the previous step).
+  - The user's original question (as text).
+  - Custom instructions guiding the LLM on how to answer (e.g., "You are Romain Dujardin. Answer in the first person using only the provided context. Answer in [French/English].").
+- LLM Call: This complete prompt is sent to the LLM (e.g., Mistral-7B-Instruct-v0.2) via the Hugging Face API.
+- Receiving the Response: The LLM generates a text-based answer based on the provided context and instructions.
 
 ### 5. Output Processing & Display
 
