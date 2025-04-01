@@ -12,12 +12,12 @@ or Direct link : https://romain.streamlit.app
 
 ### 1. Data Preparation (Offline Process)
 
-Multilingual Data Collection: First, personal information about Romain is gathered and written down as distinct facts or sentences, separately in both French and English.
-Example (EN): "My name is Romain Dujardin", "I am 22 years old".
-Example (FR): "Je m'appelle Romain Dujardin", "J'ai 22 ans".
-Chunking: If some sentences are too long, they might be split into smaller, more focused sub-sentences to ensure the context retrieved later is concise and relevant.
-Embedding: Each of these sentences (in both languages) is then processed by a multilingual embedding model (like paraphrase-multilingual-mpnet-base-v2). This model converts the text sentences into numerical vectors (sequences of numbers, not just 0s and 1s, e.g., [0.12, -0.05, 0.88, ...]). These vectors capture the semantic meaning of the sentences in a way the computer can understand and compare.
-Vector Storage (FAISS Index): All the generated vectors for each language are stored in a dedicated, efficient vector database. Specifically, two separate FAISS indexes are created: one containing the embeddings of the English sentences, and another for the French sentences.
+- Multilingual Data Collection: First, personal information about Romain is gathered and written down as distinct facts or sentences, separately in both French and English.
+  - Example (EN): "My name is Romain Dujardin", "I am 22 years old".
+  - Example (FR): "Je m'appelle Romain Dujardin", "J'ai 22 ans".
+- Chunking: If some sentences are too long, they might be split into smaller, more focused sub-sentences to ensure the context retrieved later is concise and relevant.
+- Embedding: Each of these sentences (in both languages) is then processed by a multilingual embedding model (like paraphrase-multilingual-mpnet-base-v2). This model converts the text sentences into numerical vectors (sequences of numbers, not just 0s and 1s, e.g., [0.12, -0.05, 0.88, ...]). These vectors capture the semantic meaning of the sentences in a way the computer can understand and compare.
+- Vector Storage (FAISS Index): All the generated vectors for each language are stored in a dedicated, efficient vector database. Specifically, two separate FAISS indexes are created: one containing the embeddings of the English sentences, and another for the French sentences.
 This data preparation is done offline. It only needs to be repeated when new information about Romain needs to be added or updated.
 
 ### 2. User Interaction & Input Processing (Runtime Process)
