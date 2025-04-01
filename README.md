@@ -27,9 +27,9 @@ This data preparation is done offline. It only needs to be repeated when new inf
 - Initial Choices: The user first selects:
   1. Their desired language (French or English).
   2. Their preferred mode of interaction:
-    - Text-to-Text (T2T): Ask in text, get a text answer.
-    - Text-to-Speech (T2S): Ask in text, get a spoken answer (and text).
-    - Speech-to-Speech (S2S): Ask by voice, get a spoken answer (and text).
+      - Text-to-Text (T2T): Ask in text, get a text answer.
+      - Text-to-Speech (T2S): Ask in text, get a spoken answer (and text).
+      - Speech-to-Speech (S2S): Ask by voice, get a spoken answer (and text).
 - Input Processing:
   - For T2T and T2S: The user types their question directly into the interface. This text question is then vectorized using the same multilingual embedding model used for the data preparation.
   - For S2S:
