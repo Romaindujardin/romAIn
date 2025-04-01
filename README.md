@@ -12,14 +12,14 @@ or Direct link : https://romain.streamlit.app
 
 ### 1. Data Preparation (Offline Process)
 
-- Multilingual Data Collection: First, personal information about Romain is gathered and written down as distinct facts or sentences, separately in both French and English.
+- Multilingual Data Collection: First, personal information about me is gathered and written down as distinct facts or sentences, separately in both French and English.
   - Example (EN): "My name is Romain Dujardin", "I am 22 years old".
   - Example (FR): "Je m'appelle Romain Dujardin", "J'ai 22 ans".
 - Chunking: If some sentences are too long, they might be split into smaller, more focused sub-sentences to ensure the context retrieved later is concise and relevant.
-- Embedding: Each of these sentences (in both languages) is then processed by a multilingual embedding model (like paraphrase-multilingual-mpnet-base-v2). This model converts the text sentences into numerical vectors (sequences of numbers, not just 0s and 1s, e.g., [0.12, -0.05, 0.88, ...]). These vectors capture the semantic meaning of the sentences in a way the computer can understand and compare.
+- Embedding: Each of these sentences (in both languages) is then processed by a multilingual embedding model (paraphrase-multilingual-mpnet-base-v2). This model converts the text sentences into numerical vectors ([0.12, -0.05, 0.88, ...]). These vectors capture the semantic meaning of the sentences in a way the computer can understand and compare.
 - Vector Storage (FAISS Index): All the generated vectors for each language are stored in a dedicated, efficient vector database. Specifically, two separate FAISS indexes are created: one containing the embeddings of the English sentences, and another for the French sentences.
   
-This data preparation is done offline. It only needs to be repeated when new information about Romain needs to be added or updated.
+This data preparation is done offline. It only needs to be repeated when new information needs to be added or updated.
 
 ### 2. User Interaction & Input Processing (Runtime Process)
 
@@ -34,7 +34,7 @@ This data preparation is done offline. It only needs to be repeated when new inf
   - For T2T and T2S: The user types their question directly into the interface. This text question is then vectorized using the same multilingual embedding model used for the data preparation.
   - For S2S:
     - The user either records their voice directly in the interface or uploads an audio file.
-    - This audio data is sent to an Automatic Speech Recognition (ASR) model (like Whisper).
+    - This audio data is sent to an Automatic Speech Recognition (ASR) model (Whisper).
     - Whisper transcribes the speech into text.
     - Then, this resulting text transcription is vectorized using the multilingual embedding model.
       
@@ -53,7 +53,7 @@ No matter the input method (typed text or transcribed speech), the result at thi
   - The retrieved relevant documents (the top 3 sentences identified in the previous step).
   - The user's original question (as text).
   - Custom instructions guiding the LLM on how to answer (e.g., "You are Romain Dujardin. Answer in the first person using only the provided context. Answer in [French/English].").
-- LLM Call: This complete prompt is sent to the LLM (e.g., Mistral-7B-Instruct-v0.2) via the Hugging Face API.
+- LLM Call: This complete prompt is sent to the LLM (Mistral-7B-Instruct-v0.2) via the Hugging Face API.
 - Receiving the Response: The LLM generates a text-based answer based on the provided context and instructions.
 
 ### 5. Output Processing & Display
@@ -62,8 +62,8 @@ No matter the input method (typed text or transcribed speech), the result at thi
 - Output Delivery (Mode-Dependent):
   - If T2T: The cleaned text answer is displayed directly on the Streamlit interface.
   - If T2S or S2S:
-    - The cleaned text answer is also sent to a Text-to-Speech (TTS) model (like Facebook MMS-TTS).
-    - The appropriate language model is selected (e.g., mms-tts-fra for French, mms-tts-eng for English) based on the user's initial language choice.
+    - The cleaned text answer is also sent to a Text-to-Speech (TTS) model (Facebook MMS-TTS).
+    - The appropriate language model is selected (mms-tts-fra for French, mms-tts-eng for English) based on the user's initial language choice.
     - The TTS model generates an audio waveform of the answer being spoken.
     - This audio output is then presented to the user for playback via the Streamlit interface (often alongside the displayed text answer).
 
