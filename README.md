@@ -58,14 +58,14 @@ No matter the input method (typed text or transcribed speech), the result at thi
 
 ### 5. Output Processing & Display
 
-Response Cleaning: The raw text response from the LLM is cleaned. This involves removing potential repetitions of the question or context, or boilerplate phrases (like "Based on the context..."). The goal is to have a natural, direct answer.
-Output Delivery (Mode-Dependent):
-If T2T: The cleaned text answer is displayed directly on the Streamlit interface.
-If T2S or S2S:
-The cleaned text answer is also sent to a Text-to-Speech (TTS) model (like Facebook MMS-TTS).
-The appropriate language model is selected (e.g., mms-tts-fra for French, mms-tts-eng for English) based on the user's initial language choice.
-The TTS model generates an audio waveform of the answer being spoken.
-This audio output is then presented to the user for playback via the Streamlit interface (often alongside the displayed text answer).
+- Response Cleaning: The raw text response from the LLM is cleaned. This involves removing potential repetitions of the question or context, or boilerplate phrases (like "Based on the context..."). The goal is to have a natural, direct answer.
+- Output Delivery (Mode-Dependent):
+  - If T2T: The cleaned text answer is displayed directly on the Streamlit interface.
+  - If T2S or S2S:
+    - The cleaned text answer is also sent to a Text-to-Speech (TTS) model (like Facebook MMS-TTS).
+    - The appropriate language model is selected (e.g., mms-tts-fra for French, mms-tts-eng for English) based on the user's initial language choice.
+    - The TTS model generates an audio waveform of the answer being spoken.
+    - This audio output is then presented to the user for playback via the Streamlit interface (often alongside the displayed text answer).
 
 
 
