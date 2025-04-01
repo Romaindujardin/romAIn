@@ -18,24 +18,26 @@ or Direct link : https://romain.streamlit.app
 - Chunking: If some sentences are too long, they might be split into smaller, more focused sub-sentences to ensure the context retrieved later is concise and relevant.
 - Embedding: Each of these sentences (in both languages) is then processed by a multilingual embedding model (like paraphrase-multilingual-mpnet-base-v2). This model converts the text sentences into numerical vectors (sequences of numbers, not just 0s and 1s, e.g., [0.12, -0.05, 0.88, ...]). These vectors capture the semantic meaning of the sentences in a way the computer can understand and compare.
 - Vector Storage (FAISS Index): All the generated vectors for each language are stored in a dedicated, efficient vector database. Specifically, two separate FAISS indexes are created: one containing the embeddings of the English sentences, and another for the French sentences.
+  
 This data preparation is done offline. It only needs to be repeated when new information about Romain needs to be added or updated.
 
 ### 2. User Interaction & Input Processing (Runtime Process)
 
-Interface (Streamlit): The user interacts with the chatbot via a Streamlit web interface.
-Initial Choices: The user first selects:
-Their desired language (French or English).
-Their preferred mode of interaction:
-Text-to-Text (T2T): Ask in text, get a text answer.
-Text-to-Speech (T2S): Ask in text, get a spoken answer (and text).
-Speech-to-Speech (S2S): Ask by voice, get a spoken answer (and text).
-Input Processing:
-For T2T and T2S: The user types their question directly into the interface. This text question is then vectorized using the same multilingual embedding model used for the data preparation.
-For S2S:
-The user either records their voice directly in the interface or uploads an audio file.
-This audio data is sent to an Automatic Speech Recognition (ASR) model (like Whisper).
-Whisper transcribes the speech into text.
-Then, this resulting text transcription is vectorized using the multilingual embedding model.
+- Interface (Streamlit): The user interacts with the chatbot via a Streamlit web interface.
+- Initial Choices: The user first selects:
+  1. Their desired language (French or English).
+  2. Their preferred mode of interaction:
+    - Text-to-Text (T2T): Ask in text, get a text answer.
+    - Text-to-Speech (T2S): Ask in text, get a spoken answer (and text).
+    - Speech-to-Speech (S2S): Ask by voice, get a spoken answer (and text).
+- Input Processing:
+  - For T2T and T2S: The user types their question directly into the interface. This text question is then vectorized using the same multilingual embedding model used for the data preparation.
+  - For S2S:
+    - The user either records their voice directly in the interface or uploads an audio file.
+    - This audio data is sent to an Automatic Speech Recognition (ASR) model (like Whisper).
+    - Whisper transcribes the speech into text.
+    - Then, this resulting text transcription is vectorized using the multilingual embedding model.
+      
 No matter the input method (typed text or transcribed speech), the result at this stage is a query vector representing the user's question.
 
 ### 3. Context Retrieval (Finding Relevant Information)
