@@ -1,5 +1,5 @@
 # romAIn
-My personal chatbot trained to answer professional questions in English for me.
+This document describes the process behind the RomAIn chatbot, an AI designed to answer questions based on personal information about me. The chatbot now supports interactions in both French and English, and can receive input via text or voice, and provide output as text or synthesized speech.
 
 ## Access
 
