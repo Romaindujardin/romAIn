@@ -42,10 +42,10 @@ No matter the input method (typed text or transcribed speech), the result at thi
 
 ### 3. Context Retrieval (Finding Relevant Information)
 
-Index Selection: Based on the language selected by the user at the start, the system chooses the corresponding FAISS index (either the English or the French one).
-Similarity Search: The user's query vector is compared against all the document vectors stored in the selected FAISS index. FAISS efficiently calculates the similarity (or distance) between the query vector and the document vectors.
-Selecting Top Documents: The system retrieves the documents whose vectors are most similar to the query vector. In this case, the top 3 most relevant documents are selected to serve as context for answering the question.
-Example: For the question "What's your name?", the vector for "My name is Romain Dujardin" would likely be very similar, while the vector for "I am 22 years old" would be less similar, ensuring the most relevant fact is retrieved.
+- Index Selection: Based on the language selected by the user at the start, the system chooses the corresponding FAISS index (either the English or the French one).
+- Similarity Search: The user's query vector is compared against all the document vectors stored in the selected FAISS index. FAISS efficiently calculates the similarity (or distance) between the query vector and the document vectors.
+- Selecting Top Documents: The system retrieves the documents whose vectors are most similar to the query vector. In this case, the top 3 most relevant documents are selected to serve as context for answering the question.
+  - Example: For the question "What's your name?", the vector for "My name is Romain Dujardin" would likely be very similar, while the vector for "I am 22 years old" would be less similar, ensuring the most relevant fact is retrieved.
 
 ### 4. Generating the Answer (LLM Interaction)
 
