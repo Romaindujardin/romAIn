@@ -8,7 +8,7 @@ This document describes the process behind the RomAIn chatbot, an AI designed to
 or Direct link : https://romain.streamlit.app
 
 ## Explanation
-![image](https://github.com/user-attachments/assets/a3faf551-cbf4-429d-9531-ff739b90a10c)
+![image](https://github.com/user-attachments/assets/1e33cb7d-03b1-4367-8e11-9d6e9780194c)
 
 ### 1. Data Preparation (Offline Process)
 
