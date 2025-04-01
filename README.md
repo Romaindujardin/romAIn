@@ -8,7 +8,8 @@ My personal chatbot trained to answer professional questions in English for me.
 or Direct link : https://romain.streamlit.app
 
 ## Explanation
-![image](https://github.com/user-attachments/assets/3108ab0d-acb9-443b-9520-78b69aea7037)
+![image](https://github.com/user-attachments/assets/ab192b0e-c46d-4c4d-83db-bf3f2d177926)
+
 
 
 ### Data 
