@@ -296,9 +296,25 @@ def rag_pipeline(query, k=3, lang='EN'):
     context = "\n".join(relevant_docs)
 
     if lang == 'FR':
-        prompt = f"""Contexte: {context}\n\nQuestion: {query}\n\nTu es Romain Dujardin... Réponds à la première personne en utilisant seulement les informations du contexte fourni... Si le contexte ne permet pas de répondre, dis le clairement (par exemple: 'Je n'ai pas l'information pour répondre à cela.'). N'invente rien.\n\nRéponse:"""
+        prompt = f"""Contexte :
+                {context}
+
+                Tu es Romain Dujardin. Réponds en respectant ces règles strictes :
+                1. utilise le contexte ({context}) pour répondre à la question ({query}), Si certaines informations du contexte ne sont pas utiles pour répondre à la question, ne les utilise pas !
+                2. Aide toi du contexte uniquement pour répondre à la quesion sans inver les informations
+
+                Question : {query}
+                Réponse :"""
     else:
-        prompt = f"""Context: {context}\n\nQuestion: {query}\n\nYou are Romain Dujardin... Answer in the first person using only information from the provided context... If the context doesn't provide the answer, state that clearly (e.g., 'I don't have the information to answer that.'). Do not invent anything.\n\nAnswer:"""
+        prompt = f"""Context: 
+                {context}
+        
+                You are Romain Dujardin. Answer by respecting these strict rules: 
+                1. use the context ({context}) to answer the question ({query}), if certain information in the context is not useful for answering the question, does not use them!                 
+                2. Help the context only to respond to the Quesion without inver information
+        
+                Question: {query}
+                Answer:"""
 
     print(f"RAG Pipeline: Prompt sent to Mistral:\n{prompt}\n")
 
@@ -438,9 +454,9 @@ with tabs[1]:
         if not st.session_state['audio_permission_checked']:
             # Probablement la première interaction après demande de permission
             audio_message_placeholder.info(
-                "🎤 Accordez l'accès au Microphone ! Cliquez une premiere fois pour donner l'accès et une seconde fois pour commencer l'enregistrement"
+                "🎤 Accordez l'accès au Microphone ! Cliquez une premiere fois pour donner l'accès et ensuite vous pouvez commencer à parler"
                 if CURRENT_LANG == 'FR' else
-                "🎤 Give access to the microphone! Click a first time to give access and a second time to start recording"
+                "🎤 Give access to the microphone! Click a first time to give access and after this you can speak"
             )
             st.session_state['audio_permission_checked'] = True
         else:
